@@ -1,26 +1,26 @@
 import { useTranslation } from 'react-i18next'
 import { useGameStore } from '../../store/gameStore'
-import type { Scenario, DecisionChoice } from '../../data/types'
+import type { Scenario, DrivingOutcome } from '../../data/types'
 import { TrafficLightSVG } from '../components/TrafficLightSVG'
 
 interface Props {
   scenario: Scenario
-  choice: DecisionChoice
+  outcome: DrivingOutcome
   pointsEarned: number
   onNext: () => void
 }
 
-export function FeedbackModal({ scenario, choice, pointsEarned, onNext }: Props) {
+export function FeedbackModal({ scenario, outcome, pointsEarned, onNext }: Props) {
   const { t } = useTranslation()
   const lang = useGameStore((s) => s.lang)
-  const isCorrect = choice.isCorrect
-  const mainLight = scenario.lights[0]
+  const isCorrect = outcome.isCorrect
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0">
-      <div className="w-full max-w-2xl max-h-[70vh] overflow-y-auto rounded-t-3xl shadow-2xl"
-        style={{ background: 'linear-gradient(180deg, #0f2744 0%, #0d1b2a 100%)', border: '1px solid rgba(26,78,140,0.5)' }}>
-
+      <div
+        className="w-full max-w-2xl max-h-[72vh] overflow-y-auto rounded-t-3xl shadow-2xl"
+        style={{ background: 'linear-gradient(180deg, #0f2744 0%, #0d1b2a 100%)', border: '1px solid rgba(26,78,140,0.5)' }}
+      >
         {/* Result banner */}
         <div
           className="flex items-center justify-between px-6 py-4 rounded-t-3xl"
@@ -32,32 +32,24 @@ export function FeedbackModal({ scenario, choice, pointsEarned, onNext }: Props)
               <div className="text-xl font-bold" style={{ color: isCorrect ? '#00C853' : '#D32F2F' }}>
                 {isCorrect ? t('feedback.correct') : t('feedback.incorrect')}
               </div>
+              <div className="text-sm text-gray-300">{t(`reason.${outcome.reason}`)}</div>
               {isCorrect && pointsEarned > 0 && (
                 <div className="text-[#FF6B35] text-sm font-bold">+{pointsEarned} {t('hud.score')}</div>
               )}
             </div>
           </div>
-          {mainLight && (
-            <TrafficLightSVG state={mainLight.state} size={48} />
-          )}
+          {scenario.light && <TrafficLightSVG state={scenario.light} size={48} />}
         </div>
 
-        {/* Choice feedback */}
-        <div className="px-6 py-3 border-b border-[#1A4E8C]/30">
-          <p className="text-sm text-gray-300 italic">{choice.feedbackText[lang]}</p>
-        </div>
-
-        {/* Main explanation */}
+        {/* Explanation */}
         <div className="px-6 py-4 border-b border-[#1A4E8C]/30">
           <div className="text-xs text-[#FF6B35] font-bold mb-2 uppercase tracking-wider">
             {t('feedback.explanation')}
           </div>
-          <p className="text-sm text-gray-200 leading-relaxed">
-            {scenario.feedback.explanation[lang]}
-          </p>
+          <p className="text-sm text-gray-200 leading-relaxed">{scenario.feedback.explanation[lang]}</p>
         </div>
 
-        {/* Law citation */}
+        {/* Law */}
         <div className="px-6 py-3 border-b border-[#1A4E8C]/30 flex items-center gap-2">
           <span className="text-lg">⚖️</span>
           <div>
@@ -79,7 +71,6 @@ export function FeedbackModal({ scenario, choice, pointsEarned, onNext }: Props)
           </div>
         )}
 
-        {/* Next button */}
         <div className="px-6 py-4">
           <button
             onClick={onNext}

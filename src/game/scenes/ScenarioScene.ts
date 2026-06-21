@@ -1,24 +1,90 @@
 import Phaser from 'phaser'
 import { bridge, REACT_EVENTS, PHASER_EVENTS } from '../EventBridge'
-import type { Scenario, DecisionChoice, ConsequenceType } from '../../data/types'
+import { inputState } from '../inputState'
+import { canCrossLine } from '../../data/trafficRules'
+import type {
+  Scenario,
+  TrafficLightState,
+  ScenarioNPC,
+  Maneuver,
+  OutcomeReason,
+} from '../../data/types'
 import { GAME_WIDTH, GAME_HEIGHT } from '../GameConfig'
 
-// Road drawing constants
+// ---- Road / colour constants ----
 const ROAD_COLOR = 0x4a4a4a
 const ROAD_LINE = 0xffffff
 const SIDEWALK_COLOR = 0x8a7c6a
 const GRASS_COLOR = 0x3d7a30
 const INTERSECTION_COLOR = 0x555555
 
+// ---- Geometry ----
+const CX = GAME_WIDTH / 2 // 400
+const CY = GAME_HEIGHT / 2 // 225
+const ROAD_W = 80
+const INT = 80 // intersection size
+
+// Japan = left-hand traffic. A northbound car keeps to the LEFT (west, smaller x).
+const NB_LANE_X = CX - 20 // player (northbound)
+
+const STOP_LINE_Y = CY + INT / 2 // 265 — player stops before (south of) this
+const SPAWN_Y = GAME_HEIGHT - 22
+const LIGHT_X = CX + INT / 2 + 18
+const LIGHT_Y = CY - INT / 2 - 6
+
+// Goal lines (reaching one resolves the maneuver)
+const GOAL_STRAIGHT_Y = CY - 80
+const GOAL_RIGHT_X = CX + 90
+const GOAL_LEFT_X = CX - 90
+
+// ---- Physics ----
+const CRUISE_SPEED = 95 // px/s the car rolls at once driving begins
+const MAX_SPEED = 240
+const ACCEL = 165
+const BRAKE_DECEL = 340
+const COAST_FRICTION = 22
+const TURN_RATE = 2.6 // rad/s at full effect
+const STOP_EPS = 8 // below this speed the car counts as "stopped"
+
+// ---- Collision radii ----
+const CAR_R = 19
+const NPC_CAR_R = 18
+const NPC_PED_R = 11
+
+type Phase = 'idle' | 'ready' | 'drive' | 'done'
+
+interface NpcSprite {
+  def: ScenarioNPC
+  obj: Phaser.GameObjects.Container
+}
+
 export class ScenarioScene extends Phaser.Scene {
   private car!: Phaser.GameObjects.Container
   private roadGraphics!: Phaser.GameObjects.Graphics
-  private npcGraphics: Phaser.GameObjects.Container[] = []
-  private trafficLights: Phaser.GameObjects.Container[] = []
-  private flashTimers: Phaser.Time.TimerEvent[] = []
+  private lightContainer: Phaser.GameObjects.Container | null = null
+  private lightLamp: Phaser.GameObjects.Graphics | null = null
+  private npcs: NpcSprite[] = []
+  private flashTimer: Phaser.Time.TimerEvent | null = null
 
-  private currentScenario: Scenario | null = null
-  private decisionPending = false
+  private scenario: Scenario | null = null
+  private phase: Phase = 'idle'
+
+  // car kinematic state
+  private speed = 0
+  private heading = 0 // radians, 0 = north (up)
+
+  // evaluation state
+  private driveStart = 0
+  private currentLight: TrafficLightState | null = null
+  private hasStopped = false
+  private crossedLine = false
+  private resolved = false
+
+  private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
+  private keyW?: Phaser.Input.Keyboard.Key
+  private keyA?: Phaser.Input.Keyboard.Key
+  private keyS?: Phaser.Input.Keyboard.Key
+  private keyD?: Phaser.Input.Keyboard.Key
 
   constructor() {
     super({ key: 'ScenarioScene' })
@@ -27,443 +93,493 @@ export class ScenarioScene extends Phaser.Scene {
   create() {
     this.buildRoad()
     this.car = this.createCar()
-    this.repositionCarToStart()
+    this.resetCarToSpawn()
+
+    if (this.input.keyboard) {
+      this.cursors = this.input.keyboard.createCursorKeys()
+      this.keyW = this.input.keyboard.addKey('W')
+      this.keyA = this.input.keyboard.addKey('A')
+      this.keyS = this.input.keyboard.addKey('S')
+      this.keyD = this.input.keyboard.addKey('D')
+    }
 
     bridge.on(REACT_EVENTS.START_SCENARIO, this.onStartScenario)
-    bridge.on(REACT_EVENTS.PLAYER_CHOICE, this.onPlayerChoice)
     bridge.on(REACT_EVENTS.NEXT_SCENARIO, this.onNextScenario)
 
-    // Signal React that listeners are registered and we're ready to receive events
     bridge.emit(PHASER_EVENTS.SCENE_READY)
   }
 
   destroy() {
     bridge.off(REACT_EVENTS.START_SCENARIO, this.onStartScenario)
-    bridge.off(REACT_EVENTS.PLAYER_CHOICE, this.onPlayerChoice)
     bridge.off(REACT_EVENTS.NEXT_SCENARIO, this.onNextScenario)
-    this.flashTimers.forEach((t) => t.destroy())
+    this.flashTimer?.destroy()
   }
 
-  // ---- Road Drawing ----
+  // ================= Road =================
 
   private buildRoad() {
     if (this.roadGraphics) this.roadGraphics.destroy()
     this.roadGraphics = this.add.graphics()
     const g = this.roadGraphics
-    const cx = GAME_WIDTH / 2
-    const cy = GAME_HEIGHT / 2
-    const roadW = 80
-    const intSize = 80
 
-    // Grass background
     g.fillStyle(GRASS_COLOR)
     g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
     // Sidewalks
     g.fillStyle(SIDEWALK_COLOR)
-    g.fillRect(cx - roadW / 2 - 8, 0, roadW + 16, GAME_HEIGHT)
-    g.fillRect(0, cy - roadW / 2 - 8, GAME_WIDTH, roadW + 16)
+    g.fillRect(CX - ROAD_W / 2 - 8, 0, ROAD_W + 16, GAME_HEIGHT)
+    g.fillRect(0, CY - ROAD_W / 2 - 8, GAME_WIDTH, ROAD_W + 16)
 
     // Road surface
     g.fillStyle(ROAD_COLOR)
-    g.fillRect(cx - roadW / 2, 0, roadW, GAME_HEIGHT)
-    g.fillRect(0, cy - roadW / 2, GAME_WIDTH, roadW)
+    g.fillRect(CX - ROAD_W / 2, 0, ROAD_W, GAME_HEIGHT)
+    g.fillRect(0, CY - ROAD_W / 2, GAME_WIDTH, ROAD_W)
 
     // Intersection
     g.fillStyle(INTERSECTION_COLOR)
-    g.fillRect(cx - intSize / 2, cy - intSize / 2, intSize, intSize)
+    g.fillRect(CX - INT / 2, CY - INT / 2, INT, INT)
 
-    // Center dashes (vertical)
+    // Centre dashes
     g.fillStyle(ROAD_LINE)
-    for (let y = 0; y < cy - intSize / 2; y += 30) {
-      g.fillRect(cx - 2, y, 4, 18)
-    }
-    for (let y = cy + intSize / 2 + 12; y < GAME_HEIGHT; y += 30) {
-      g.fillRect(cx - 2, y, 4, 18)
-    }
-    // Center dashes (horizontal)
-    for (let x = 0; x < cx - intSize / 2; x += 30) {
-      g.fillRect(x, cy - 2, 18, 4)
-    }
-    for (let x = cx + intSize / 2 + 12; x < GAME_WIDTH; x += 30) {
-      g.fillRect(x, cy - 2, 18, 4)
-    }
+    for (let y = 0; y < CY - INT / 2; y += 30) g.fillRect(CX - 2, y, 4, 18)
+    for (let y = CY + INT / 2 + 12; y < GAME_HEIGHT; y += 30) g.fillRect(CX - 2, y, 4, 18)
+    for (let x = 0; x < CX - INT / 2; x += 30) g.fillRect(x, CY - 2, 18, 4)
+    for (let x = CX + INT / 2 + 12; x < GAME_WIDTH; x += 30) g.fillRect(x, CY - 2, 18, 4)
 
-    // Stop lines
+    // Stop lines (all four approaches)
     g.fillStyle(ROAD_LINE)
-    g.fillRect(cx - roadW / 2, cy - intSize / 2 - 4, roadW, 4) // top stop line
-    g.fillRect(cx - roadW / 2, cy + intSize / 2, roadW, 4)     // bottom
-    g.fillRect(cx - intSize / 2 - 4, cy - roadW / 2, 4, roadW) // left
-    g.fillRect(cx + intSize / 2, cy - roadW / 2, 4, roadW)     // right
+    g.fillRect(CX - ROAD_W / 2, CY + INT / 2, ROAD_W, 4) // player approach (south)
+    g.fillRect(CX - ROAD_W / 2, CY - INT / 2 - 4, ROAD_W, 4)
+    g.fillRect(CX - INT / 2 - 4, CY - ROAD_W / 2, 4, ROAD_W)
+    g.fillRect(CX + INT / 2, CY - ROAD_W / 2, 4, ROAD_W)
 
-    // Zebra crossing (top)
+    // Zebra crossing on the player's approach (south of the intersection)
     g.fillStyle(ROAD_LINE)
     for (let i = 0; i < 5; i++) {
-      g.fillRect(cx - roadW / 2 + i * 16, cy - intSize / 2 - 18, 10, 14)
+      g.fillRect(CX - ROAD_W / 2 + i * 16, CY + INT / 2 + 26, 10, 16)
     }
-
-    // Direction arrow on player lane (coming from bottom)
-    this.drawArrow(cx + 20, cy + intSize / 2 + 30, 'up', g)
+    // Player's physical stop line, south of the crosswalk
+    g.fillRect(CX - ROAD_W / 2, CY + INT / 2 + 50, ROAD_W, 4)
   }
 
-  private drawArrow(x: number, y: number, dir: 'up' | 'down', g: Phaser.GameObjects.Graphics) {
-    g.fillStyle(ROAD_LINE)
-    g.fillRect(x - 2, y - 16, 4, 20)
-    if (dir === 'up') {
-      g.fillTriangle(x - 8, y - 14, x + 8, y - 14, x, y - 28)
-    } else {
-      g.fillTriangle(x - 8, y + 14, x + 8, y + 14, x, y + 28)
-    }
-  }
-
-  // ---- Car ----
+  // ================= Car =================
 
   private createCar(): Phaser.GameObjects.Container {
     const g = this.add.graphics()
-    // Body
     g.fillStyle(0x1565c0)
-    g.fillRoundedRect(-18, -30, 36, 60, 6)
-    // Windshield
+    g.fillRoundedRect(-16, -26, 32, 52, 6)
     g.fillStyle(0x90caf9)
-    g.fillRect(-12, -22, 24, 16)
-    // Rear window
+    g.fillRect(-11, -19, 22, 14) // windshield
     g.fillStyle(0x90caf9)
-    g.fillRect(-12, 10, 24, 12)
-    // Wheels
+    g.fillRect(-11, 9, 22, 10) // rear window
     g.fillStyle(0x111111)
-    g.fillRect(-22, -24, 7, 14)
-    g.fillRect(15, -24, 7, 14)
-    g.fillRect(-22, 14, 7, 14)
-    g.fillRect(15, 14, 7, 14)
-    // Headlights
+    g.fillRect(-19, -21, 6, 12)
+    g.fillRect(13, -21, 6, 12)
+    g.fillRect(-19, 11, 6, 12)
+    g.fillRect(13, 11, 6, 12)
     g.fillStyle(0xfff176)
-    g.fillRect(-14, -28, 10, 6)
-    g.fillRect(4, -28, 10, 6)
+    g.fillRect(-12, -25, 9, 5)
+    g.fillRect(3, -25, 9, 5)
 
-    const container = this.add.container(0, 0, [g])
-    container.setDepth(10)
-    return container
+    const c = this.add.container(0, 0, [g])
+    c.setDepth(10)
+    return c
   }
 
-  private repositionCarToStart() {
-    const cx = GAME_WIDTH / 2 + 20
-    this.car.setPosition(cx, GAME_HEIGHT - 60)
+  private resetCarToSpawn() {
+    this.speed = 0
+    this.heading = 0
+    this.car.setPosition(NB_LANE_X, SPAWN_Y)
     this.car.setRotation(0)
   }
 
-  // ---- Traffic Lights ----
+  // ================= Traffic light =================
 
-  private clearTrafficLights() {
-    this.flashTimers.forEach((t) => t.destroy())
-    this.flashTimers = []
-    this.trafficLights.forEach((c) => c.destroy())
-    this.trafficLights = []
+  private clearLight() {
+    this.flashTimer?.destroy()
+    this.flashTimer = null
+    this.lightContainer?.destroy()
+    this.lightContainer = null
+    this.lightLamp = null
   }
 
-  private drawTrafficLights(scenario: Scenario) {
-    this.clearTrafficLights()
-    scenario.lights.forEach((def) => {
-      const container = this.createTrafficLightSprite(def.state)
-      container.setPosition(def.x, def.y)
-      if (def.rotation) container.setRotation(def.rotation)
-      container.setDepth(5)
-      this.trafficLights.push(container)
-      this.add.existing(container)
-
-      if (def.state.type === 'flashing') {
-        let visible = true
-        const timer = this.time.addEvent({
-          delay: 500,
-          loop: true,
-          callback: () => {
-            visible = !visible
-            // Toggle the colored lamp (second child)
-            const lamp = container.getAt(1) as Phaser.GameObjects.Graphics
-            if (lamp) lamp.setVisible(visible)
-          },
-        })
-        this.flashTimers.push(timer)
-      }
-    })
-  }
-
-  private createTrafficLightSprite(
-    state: Scenario['lights'][0]['state']
-  ): Phaser.GameObjects.Container {
+  private drawLight(state: TrafficLightState) {
+    this.clearLight()
     const g = this.add.graphics()
-    // Housing
     g.fillStyle(0x222222)
-    g.fillRoundedRect(-14, -44, 28, 80, 4)
-
+    g.fillRoundedRect(-13, -40, 26, 74, 4)
     const lamp = this.add.graphics()
+    this.renderLamp(g, lamp, state)
 
-    switch (state.type) {
-      case 'standard': {
-        const colors: Record<string, number> = { red: 0xff2222, yellow: 0xffcc00, green: 0x00cc44 }
-        const yOffsets: Record<string, number> = { red: -28, yellow: -4, green: 20 }
-        // Draw all lamps dim
-        const dimColors: Record<string, number> = { red: 0x661111, yellow: 0x665500, green: 0x005522 }
-        Object.entries(yOffsets).forEach(([col, yo]) => {
-          g.fillStyle(dimColors[col])
-          g.fillCircle(0, yo, 10)
-        })
-        // Light the active one
-        lamp.fillStyle(colors[state.color])
-        lamp.fillCircle(0, yOffsets[state.color], 10)
-        // Glow effect
-        lamp.fillStyle(colors[state.color], 0.3)
-        lamp.fillCircle(0, yOffsets[state.color], 16)
-        break
-      }
+    const c = this.add.container(LIGHT_X, LIGHT_Y, [g, lamp])
+    c.setDepth(6)
+    this.lightContainer = c
+    this.lightLamp = lamp
 
-      case 'arrow': {
-        // Show dim main signal
-        const mainDim = state.mainColor === 'red' ? 0x661111 : 0x665500
-        g.fillStyle(mainDim)
-        g.fillCircle(0, -20, 10)
-        // Arrow panel below
-        g.fillStyle(0x333333)
-        g.fillRect(-12, -4, 24, 36)
-        // Active arrows
-        lamp.fillStyle(0x00aaff)
-        state.activeArrows.forEach((arrow, i) => {
-          const ay = -4 + i * 12 + 6
-          if (arrow === 'left') this.drawArrowGlyph(lamp, -4, ay, 'left')
-          else if (arrow === 'right') this.drawArrowGlyph(lamp, -4, ay, 'right')
-          else this.drawArrowGlyph(lamp, 0, ay, 'up')
-        })
-        break
-      }
+    if (state.type === 'flashing') {
+      let on = true
+      this.flashTimer = this.time.addEvent({
+        delay: 480,
+        loop: true,
+        callback: () => {
+          on = !on
+          lamp.setVisible(on)
+        },
+      })
+    }
+  }
 
-      case 'flashing': {
-        const col = state.color === 'red' ? 0xff2222 : 0xffcc00
-        const dim = state.color === 'red' ? 0x661111 : 0x665500
-        g.fillStyle(dim)
-        g.fillCircle(0, 0, 12)
-        lamp.fillStyle(col)
-        lamp.fillCircle(0, 0, 12)
-        lamp.fillStyle(col, 0.3)
-        lamp.fillCircle(0, 0, 18)
-        break
-      }
+  // redraw lamp colours for the current state on an existing container
+  private renderLamp(
+    housing: Phaser.GameObjects.Graphics,
+    lamp: Phaser.GameObjects.Graphics,
+    state: TrafficLightState
+  ) {
+    housing.clear()
+    housing.fillStyle(0x222222)
+    housing.fillRoundedRect(-13, -40, 26, 74, 4)
+    lamp.clear()
+    lamp.setVisible(true)
 
-      case 'pedestrian': {
-        const bodyColor = state.phase === 'stop' ? 0xff2222 : 0x00cc44
-        g.fillStyle(0x111111)
-        g.fillRoundedRect(-12, -34, 24, 68, 4)
-        lamp.fillStyle(bodyColor)
-        // Simple pedestrian figure
-        lamp.fillCircle(0, -18, 5)
-        lamp.fillRect(-6, -12, 12, 14)
-        lamp.fillTriangle(-7, -12, 7, -12, 0, 2)
-        if (state.phase === 'walk') {
-          lamp.fillRect(-8, 4, 5, 14)
-          lamp.fillRect(3, 4, 5, 14)
-        } else {
-          lamp.fillRect(-6, 4, 12, 12)
-        }
-        break
+    if (state.type === 'standard') {
+      const colors: Record<string, number> = { red: 0xff2222, yellow: 0xffcc00, green: 0x00cc44 }
+      const dim: Record<string, number> = { red: 0x551111, yellow: 0x554400, green: 0x114422 }
+      const yo: Record<string, number> = { red: -24, yellow: -2, green: 20 }
+      ;(['red', 'yellow', 'green'] as const).forEach((col) => {
+        housing.fillStyle(dim[col])
+        housing.fillCircle(0, yo[col], 9)
+      })
+      lamp.fillStyle(colors[state.color])
+      lamp.fillCircle(0, yo[state.color], 9)
+      lamp.fillStyle(colors[state.color], 0.3)
+      lamp.fillCircle(0, yo[state.color], 15)
+    } else if (state.type === 'arrow') {
+      const mainDim = state.mainColor === 'red' ? 0x551111 : state.mainColor === 'yellow' ? 0x554400 : 0x114422
+      const mainLit = state.mainColor === 'red' ? 0xff2222 : state.mainColor === 'yellow' ? 0xffcc00 : 0x00cc44
+      housing.fillStyle(mainDim)
+      housing.fillCircle(0, -22, 9)
+      lamp.fillStyle(mainLit)
+      lamp.fillCircle(0, -22, 9)
+      housing.fillStyle(0x333333)
+      housing.fillRect(-12, -6, 24, 34)
+      lamp.fillStyle(0x33ddff)
+      state.activeArrows.forEach((arrow, i) => {
+        const ay = 2 + i * 11
+        this.drawArrowGlyph(lamp, 0, ay, arrow)
+      })
+    } else if (state.type === 'flashing') {
+      const lit = state.color === 'red' ? 0xff2222 : 0xffcc00
+      const dim = state.color === 'red' ? 0x551111 : 0x554400
+      housing.fillStyle(dim)
+      housing.fillCircle(0, -4, 11)
+      lamp.fillStyle(lit)
+      lamp.fillCircle(0, -4, 11)
+      lamp.fillStyle(lit, 0.3)
+      lamp.fillCircle(0, -4, 17)
+    } else {
+      // pedestrian
+      const col = state.phase === 'stop' ? 0xff2222 : 0x00cc44
+      housing.fillStyle(0x111111)
+      housing.fillRoundedRect(-12, -32, 24, 64, 4)
+      lamp.fillStyle(col)
+      lamp.fillCircle(0, -16, 5)
+      lamp.fillRect(-5, -11, 10, 13)
+      if (state.phase === 'walk') {
+        lamp.fillRect(-7, 3, 4, 13)
+        lamp.fillRect(3, 3, 4, 13)
+      } else {
+        lamp.fillRect(-5, 3, 10, 11)
       }
     }
-
-    return this.add.container(0, 0, [g, lamp])
   }
 
   private drawArrowGlyph(g: Phaser.GameObjects.Graphics, x: number, y: number, dir: string) {
-    if (dir === 'up') {
-      g.fillTriangle(x - 5, y + 3, x + 5, y + 3, x, y - 5)
-      g.fillRect(x - 2, y + 3, 4, 6)
+    if (dir === 'straight') {
+      g.fillTriangle(x - 5, y + 2, x + 5, y + 2, x, y - 6)
+      g.fillRect(x - 2, y + 2, 4, 6)
     } else if (dir === 'left') {
-      g.fillTriangle(x - 4, y, x + 4, y - 5, x + 4, y + 5)
-      g.fillRect(x + 4, y - 2, 6, 4)
+      g.fillTriangle(x - 6, y, x + 2, y - 5, x + 2, y + 5)
+      g.fillRect(x + 2, y - 2, 6, 4)
     } else if (dir === 'right') {
-      g.fillTriangle(x + 4, y, x - 4, y - 5, x - 4, y + 5)
-      g.fillRect(x - 10, y - 2, 6, 4)
+      g.fillTriangle(x + 6, y, x - 2, y - 5, x - 2, y + 5)
+      g.fillRect(x - 8, y - 2, 6, 4)
     }
   }
 
-  // ---- NPC ----
+  private applyLightState(state: TrafficLightState) {
+    this.currentLight = state
+    if (state.type === 'flashing') {
+      // redraw + restart flashing
+      this.drawLight(state)
+    } else if (this.lightContainer && this.lightLamp) {
+      this.flashTimer?.destroy()
+      this.flashTimer = null
+      const housing = this.lightContainer.getAt(0) as Phaser.GameObjects.Graphics
+      this.renderLamp(housing, this.lightLamp, state)
+    } else {
+      this.drawLight(state)
+    }
+  }
+
+  // ================= NPCs =================
 
   private clearNPCs() {
-    this.npcGraphics.forEach((n) => n.destroy())
-    this.npcGraphics = []
+    this.npcs.forEach((n) => n.obj.destroy())
+    this.npcs = []
   }
 
   private spawnNPCs(scenario: Scenario) {
     this.clearNPCs()
-    scenario.npcs?.forEach((npc) => {
-      let container: Phaser.GameObjects.Container
-      if (npc.type === 'pedestrian') {
-        container = this.createPedestrian()
-      } else {
-        container = this.createNPCCar()
-      }
-      container.setPosition(npc.startX, npc.startY)
-      container.setDepth(8)
-      this.npcGraphics.push(container)
-
-      if (npc.path && npc.path.length > 0) {
-        const delay = npc.startAtMs ?? 1000
-        this.time.delayedCall(delay, () => {
-          this.tweens.add({
-            targets: container,
-            x: npc.path![npc.path!.length - 1].x,
-            y: npc.path![npc.path!.length - 1].y,
-            duration: 2000,
-            ease: 'Linear',
-          })
-        })
-      }
+    scenario.npcs?.forEach((def) => {
+      const obj = def.type === 'pedestrian' ? this.createPedestrian(def.color) : this.createNPCCar(def.color)
+      obj.setPosition(def.startX, def.startY)
+      obj.setDepth(8)
+      obj.setVisible(false) // appears when its startAtMs elapses
+      this.npcs.push({ def, obj })
     })
   }
 
-  private createPedestrian(): Phaser.GameObjects.Container {
+  private createPedestrian(color = 0xffd54f): Phaser.GameObjects.Container {
     const g = this.add.graphics()
-    g.fillStyle(0xff6b35)
-    g.fillCircle(0, -16, 6)
-    g.fillRect(-5, -10, 10, 14)
-    g.fillRect(-7, 4, 5, 12)
-    g.fillRect(2, 4, 5, 12)
+    g.fillStyle(color)
+    g.fillCircle(0, -14, 6)
+    g.fillRect(-5, -8, 10, 13)
+    g.fillRect(-6, 5, 4, 11)
+    g.fillRect(2, 5, 4, 11)
     return this.add.container(0, 0, [g])
   }
 
-  private createNPCCar(): Phaser.GameObjects.Container {
+  private createNPCCar(color = 0xcc2222): Phaser.GameObjects.Container {
     const g = this.add.graphics()
-    g.fillStyle(0xcc2222)
-    g.fillRoundedRect(-16, -26, 32, 52, 5)
+    g.fillStyle(color)
+    g.fillRoundedRect(-15, -24, 30, 48, 5)
     g.fillStyle(0x90caf9)
-    g.fillRect(-10, -18, 20, 12)
+    g.fillRect(-10, -16, 20, 11)
     g.fillStyle(0x111111)
-    g.fillRect(-20, -20, 6, 12)
-    g.fillRect(14, -20, 6, 12)
-    g.fillRect(-20, 12, 6, 12)
-    g.fillRect(14, 12, 6, 12)
+    g.fillRect(-18, -18, 5, 11)
+    g.fillRect(13, -18, 5, 11)
+    g.fillRect(-18, 10, 5, 11)
+    g.fillRect(13, 10, 5, 11)
     return this.add.container(0, 0, [g])
   }
 
-  // ---- Scenario lifecycle ----
+  // ================= Scenario lifecycle =================
 
-  private onStartScenario = (scenario: unknown) => {
-    this.currentScenario = scenario as Scenario
-    this.decisionPending = false
+  private onStartScenario = (raw: unknown) => {
+    const scenario = raw as Scenario
+    this.scenario = scenario
+    this.phase = 'ready'
+    this.resolved = false
+    this.hasStopped = false
+    this.crossedLine = false
 
-    // Kill any tweens from the previous scenario so they don't conflict
     this.tweens.killTweensOf(this.car)
-
     this.buildRoad()
-    this.repositionCarToStart()
+    this.resetCarToSpawn()
 
-    this.drawTrafficLights(this.currentScenario)
-    this.spawnNPCs(this.currentScenario)
+    this.clearLight()
+    this.currentLight = scenario.light
+    if (scenario.light) this.drawLight(scenario.light)
 
-    bridge.emit(PHASER_EVENTS.SCENARIO_READY)
-    this.runPhase(0)
-  }
+    this.spawnNPCs(scenario)
 
-  private runPhase(index: number) {
-    const scenario = this.currentScenario
-    if (!scenario || index >= scenario.phases.length) return
-
-    const phase = scenario.phases[index]
-
-    if (phase.playerPath.length < 2) {
-      this.scheduleDecision(phase)
-      return
-    }
-
-    const [start, ...rest] = phase.playerPath
-    this.car.setPosition(start.x, start.y)
-
-    const dx = rest[0].x - start.x
-    const dy = rest[0].y - start.y
-    this.car.setRotation(Math.atan2(dx, -dy))
-
-    // Build sequential tweens by chaining with delay accumulation
-    let delay = 0
-    rest.forEach((pt) => {
-      const duration = pt.speed ?? 1200
-      this.tweens.add({
-        targets: this.car,
-        x: pt.x,
-        y: pt.y,
-        duration,
-        ease: 'Linear',
-        delay,
-      })
-      delay += duration
+    bridge.emit(PHASER_EVENTS.SCENARIO_READY, {
+      instruction: scenario.instruction,
+      maneuver: scenario.maneuver,
     })
 
-    if (phase.decisionPoint) {
-      const { triggerAtMs } = phase.decisionPoint
-      this.time.delayedCall(triggerAtMs, () => {
-        this.tweens.getTweensOf(this.car).forEach((t) => t.pause())
-        this.scheduleDecision(phase)
-      })
-    } else {
-      // No decision — advance to next phase after all tweens complete
-      this.time.delayedCall(delay, () => {
-        this.runPhase(index + 1)
-      })
-    }
-  }
+    // brief "get ready" pause, then the car starts rolling
+    this.time.delayedCall(1700, () => {
+      if (this.phase !== 'ready') return
+      this.phase = 'drive'
+      this.speed = CRUISE_SPEED
+      this.driveStart = this.time.now
 
-  private scheduleDecision(phase: Scenario['phases'][0]) {
-    if (!phase.decisionPoint || this.decisionPending) return
-    this.decisionPending = true
-    bridge.emit(PHASER_EVENTS.SHOW_DECISION, {
-      promptText: phase.decisionPoint.promptText,
-      choices: phase.decisionPoint.choices,
-      timerSeconds: phase.decisionPoint.timerSeconds,
+      // schedule light changes relative to drive start
+      scenario.lightChanges?.forEach((ch) => {
+        this.time.delayedCall(ch.atMs, () => {
+          if (this.phase === 'drive') this.applyLightState(ch.state)
+        })
+      })
+
+      bridge.emit(PHASER_EVENTS.DRIVE_START)
     })
-  }
-
-  private onPlayerChoice = (payload: unknown) => {
-    const { choice } = payload as { choice: DecisionChoice }
-    this.decisionPending = false
-    this.playConsequence(choice.consequence, () => {
-      bridge.emit(PHASER_EVENTS.PLAY_CONSEQUENCE, { choice })
-    })
-  }
-
-  private playConsequence(type: ConsequenceType, onComplete: () => void) {
-    const cx = GAME_WIDTH / 2
-    const cy = GAME_HEIGHT / 2
-
-    if (type === 'crash') {
-      // Red flash then shake
-      const overlay = this.add.rectangle(cx, cy, GAME_WIDTH, GAME_HEIGHT, 0xff0000, 0.4)
-      overlay.setDepth(20)
-      this.cameras.main.shake(400, 0.02)
-      this.time.delayedCall(600, () => {
-        overlay.destroy()
-        onComplete()
-      })
-    } else if (type === 'smooth_pass') {
-      // Green flash
-      const overlay = this.add.rectangle(cx, cy, GAME_WIDTH, GAME_HEIGHT, 0x00cc44, 0.3)
-      overlay.setDepth(20)
-      this.tweens.add({
-        targets: overlay,
-        alpha: 0,
-        duration: 800,
-        onComplete: () => {
-          overlay.destroy()
-          onComplete()
-        },
-      })
-    } else if (type === 'near_miss') {
-      this.cameras.main.shake(200, 0.01)
-      this.time.delayedCall(500, onComplete)
-    } else {
-      // penalty_stop
-      this.time.delayedCall(400, onComplete)
-    }
   }
 
   private onNextScenario = () => {
+    this.phase = 'idle'
     this.tweens.killTweensOf(this.car)
-    this.clearTrafficLights()
+    this.clearLight()
     this.clearNPCs()
-    this.repositionCarToStart()
+    this.resetCarToSpawn()
+  }
+
+  // ================= Main loop =================
+
+  update(_time: number, delta: number) {
+    if (this.phase !== 'drive' || !this.scenario) return
+    const dt = Math.min(delta, 50) / 1000
+    const elapsed = this.time.now - this.driveStart
+
+    this.updateCar(dt)
+    this.updateNPCs(elapsed)
+
+    if (this.resolved) return
+    this.evaluate(elapsed)
+  }
+
+  private readInput() {
+    const left = inputState.left || this.cursors?.left.isDown || this.keyA?.isDown || false
+    const right = inputState.right || this.cursors?.right.isDown || this.keyD?.isDown || false
+    const throttle = inputState.throttle || this.cursors?.up.isDown || this.keyW?.isDown || false
+    const brake = inputState.brake || this.cursors?.down.isDown || this.keyS?.isDown || false
+    return { left, right, throttle, brake }
+  }
+
+  private updateCar(dt: number) {
+    const { left, right, throttle, brake } = this.readInput()
+
+    if (brake) {
+      this.speed = Math.max(0, this.speed - BRAKE_DECEL * dt)
+    } else if (throttle) {
+      this.speed = Math.min(MAX_SPEED, this.speed + ACCEL * dt)
+    } else {
+      this.speed = Math.max(0, this.speed - COAST_FRICTION * dt)
+    }
+
+    // steering only has effect while moving
+    if (this.speed > STOP_EPS) {
+      const steer = (right ? 1 : 0) - (left ? 1 : 0)
+      const speedFactor = Math.min(1, this.speed / 120)
+      this.heading += steer * TURN_RATE * speedFactor * dt
+    }
+
+    const fx = Math.sin(this.heading)
+    const fy = -Math.cos(this.heading)
+    this.car.x += fx * this.speed * dt
+    this.car.y += fy * this.speed * dt
+    this.car.setRotation(this.heading)
+  }
+
+  private updateNPCs(elapsed: number) {
+    this.npcs.forEach(({ def, obj }) => {
+      const t = elapsed - def.startAtMs
+      if (t < 0) {
+        obj.setVisible(false)
+        return
+      }
+      obj.setVisible(true)
+      const dx = def.endX - def.startX
+      const dy = def.endY - def.startY
+      const dist = Math.hypot(dx, dy)
+      const travelled = (def.speed * t) / 1000
+      const progress = dist === 0 ? 1 : Math.min(1, travelled / dist)
+      obj.x = def.startX + dx * progress
+      obj.y = def.startY + dy * progress
+    })
+  }
+
+  private evaluate(elapsed: number) {
+    const ev = this.scenario!.evaluation
+    const maneuver = this.scenario!.maneuver
+
+    // 1) Collision with any active NPC
+    for (const { def, obj } of this.npcs) {
+      if (!obj.visible) continue
+      const r = def.type === 'pedestrian' ? NPC_PED_R : NPC_CAR_R
+      if (Math.hypot(this.car.x - obj.x, this.car.y - obj.y) < CAR_R + r) {
+        return this.resolve('collision')
+      }
+    }
+
+    // 2) Full-stop detection (before the line)
+    if (!this.crossedLine && this.speed < STOP_EPS && this.car.y > STOP_LINE_Y) {
+      this.hasStopped = true
+    }
+
+    // 3) Crossing the stop line
+    if (!this.crossedLine && this.car.y <= STOP_LINE_Y) {
+      this.crossedLine = true
+      if (ev.mustStop && !this.hasStopped) {
+        return this.resolve('no_full_stop')
+      }
+      if (ev.waitForGo && !canCrossLine(this.currentLight, maneuver)) {
+        return this.resolve('ran_red')
+      }
+      if (!canCrossLine(this.currentLight, maneuver)) {
+        // signal forbids this maneuver (e.g. straight on a right-arrow-only signal)
+        return this.resolve('ran_red')
+      }
+    }
+
+    // 4) Reaching a goal zone = maneuver complete
+    const done = this.reachedGoal()
+    if (done) {
+      if (ev.allowedManeuvers && !ev.allowedManeuvers.includes(done)) {
+        return this.resolve('wrong_way')
+      }
+      return this.resolve('success')
+    }
+
+    // 5) Off-road
+    if (elapsed > 250 && this.isOffRoad()) {
+      return this.resolve('off_road')
+    }
+
+    // 6) Timeout safety net
+    if (elapsed > 18000) {
+      return this.resolve('timeout')
+    }
+  }
+
+  private reachedGoal(): Maneuver | null {
+    if (this.car.y < GOAL_STRAIGHT_Y && Math.abs(this.car.x - CX) < 44) return 'straight'
+    if (this.car.x > GOAL_RIGHT_X && Math.abs(this.car.y - CY) < 44) return 'right'
+    if (this.car.x < GOAL_LEFT_X && Math.abs(this.car.y - CY) < 44) return 'left'
+    return null
+  }
+
+  private isOffRoad(): boolean {
+    const onVertical = Math.abs(this.car.x - CX) <= ROAD_W / 2 + 6
+    const onHorizontal = Math.abs(this.car.y - CY) <= ROAD_W / 2 + 6
+    return !onVertical && !onHorizontal
+  }
+
+  private resolve(reason: OutcomeReason) {
+    if (this.resolved) return
+    this.resolved = true
+    this.phase = 'done'
+    const isCorrect = reason === 'success'
+    const timeMs = this.time.now - this.driveStart
+
+    if (reason === 'collision') {
+      const overlay = this.add.rectangle(CX, CY, GAME_WIDTH, GAME_HEIGHT, 0xff0000, 0.35).setDepth(20)
+      this.cameras.main.shake(350, 0.018)
+      this.time.delayedCall(550, () => {
+        overlay.destroy()
+        bridge.emit(PHASER_EVENTS.OUTCOME, { isCorrect, reason, timeMs })
+      })
+      return
+    }
+
+    if (isCorrect) {
+      const overlay = this.add.rectangle(CX, CY, GAME_WIDTH, GAME_HEIGHT, 0x00cc44, 0.25).setDepth(20)
+      this.tweens.add({
+        targets: overlay,
+        alpha: 0,
+        duration: 650,
+        onComplete: () => {
+          overlay.destroy()
+          bridge.emit(PHASER_EVENTS.OUTCOME, { isCorrect, reason, timeMs })
+        },
+      })
+      return
+    }
+
+    // other violations: brief shake
+    this.cameras.main.shake(220, 0.01)
+    this.time.delayedCall(420, () => {
+      bridge.emit(PHASER_EVENTS.OUTCOME, { isCorrect, reason, timeMs })
+    })
   }
 }

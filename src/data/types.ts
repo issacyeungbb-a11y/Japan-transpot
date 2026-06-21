@@ -37,70 +37,76 @@ export type TrafficLightState =
 export type VehicleIntent = 'straight' | 'turn_left' | 'turn_right' | 'stop'
 export type MandatoryAction = 'stop' | 'yield' | 'proceed'
 
-export type ConsequenceType = 'crash' | 'near_miss' | 'smooth_pass' | 'penalty_stop'
-
-export interface DecisionChoice {
-  id: string
-  text: BilingualText
-  isCorrect: boolean
-  feedbackText: BilingualText
-  consequence: ConsequenceType
-}
-
 export interface FeedbackContent {
   explanation: BilingualText
   lawArticle: string
   commonMistake?: BilingualText
 }
 
-export interface PathPoint {
-  x: number
-  y: number
-  speed?: number
-}
+// ---- Driving simulation model ----
 
-export interface ScenarioPhase {
-  id: string
-  durationMs: number
-  playerPath: PathPoint[]
-  decisionPoint?: {
-    triggerAtMs: number
-    timerSeconds: number
-    promptText: BilingualText
-    choices: DecisionChoice[]
-  }
-}
+// The maneuver the player is asked to perform through the intersection.
+export type Maneuver = 'straight' | 'left' | 'right'
 
-export type MapType = 'cross' | 't_junction' | 'oneway' | 'priority_road'
-
-export interface TrafficLightDef {
-  id: string
-  x: number
-  y: number
-  rotation?: number
+// A scheduled change of the traffic light during the scenario (e.g. yellow → red,
+// or red → green so a stopped player can proceed).
+export interface LightChange {
+  atMs: number
   state: TrafficLightState
 }
 
-export interface NPCDef {
+// A moving obstacle (oncoming car, crossing pedestrian, priority-road traffic).
+export interface ScenarioNPC {
   id: string
   type: 'vehicle' | 'pedestrian'
   startX: number
   startY: number
-  path?: PathPoint[]
-  startAtMs?: number
+  endX: number
+  endY: number
+  speed: number // pixels per second
+  startAtMs: number
+  color?: number
+}
+
+// What the scene must evaluate, in real time, against the car's actual behaviour.
+export interface ScenarioEvaluation {
+  // The car must come to a FULL stop before the stop line (e.g. red flashing / stop sign).
+  mustStop?: boolean
+  // The car may only cross the stop line while the signal is in a "go" state
+  // (solid red / yellow that must wait for green).
+  waitForGo?: boolean
+  // Legal exits from the intersection. If omitted, all maneuvers are allowed.
+  allowedManeuvers?: Maneuver[]
 }
 
 export interface Scenario {
   id: string
   category: 'standard' | 'arrow' | 'flashing' | 'pedestrian' | 'priority' | 'oneway'
   title: BilingualText
-  description: BilingualText
+  // Short goal shown to the player before the car starts moving.
+  instruction: BilingualText
   difficulty: 1 | 2 | 3
-  mapType: MapType
-  lights: TrafficLightDef[]
-  npcs?: NPCDef[]
-  phases: ScenarioPhase[]
+  maneuver: Maneuver
+  light: TrafficLightState | null
+  lightChanges?: LightChange[]
+  npcs?: ScenarioNPC[]
+  evaluation: ScenarioEvaluation
   feedback: FeedbackContent
+}
+
+export type OutcomeReason =
+  | 'success'
+  | 'ran_red' // crossed the line when stopping/waiting was required
+  | 'no_full_stop' // failed to fully stop where a full stop was mandatory
+  | 'collision' // hit a vehicle or pedestrian
+  | 'wrong_way' // took an illegal direction
+  | 'off_road' // left the roadway
+  | 'timeout' // never completed the maneuver
+
+export interface DrivingOutcome {
+  isCorrect: boolean
+  reason: OutcomeReason
+  timeMs: number
 }
 
 export interface GameSession {
@@ -115,7 +121,7 @@ export interface GameSession {
 
 export interface AnswerRecord {
   scenarioId: string
-  choiceId: string
   isCorrect: boolean
+  reason: OutcomeReason
   timeUsed: number
 }

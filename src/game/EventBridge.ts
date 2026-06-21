@@ -24,16 +24,14 @@ export const bridge = new EventBridge()
 
 // Events emitted by Phaser → consumed by React
 export const PHASER_EVENTS = {
-  SHOW_DECISION: 'phaser:showDecision',
-  PLAY_CONSEQUENCE: 'phaser:playConsequence',
-  SCENARIO_READY: 'phaser:scenarioReady',
-  SCENE_READY: 'phaser:sceneReady',        // emitted once when ScenarioScene.create() finishes
-  APPROACH_COMPLETE: 'phaser:approachComplete',
+  SCENE_READY: 'phaser:sceneReady',        // ScenarioScene.create() finished, listeners ready
+  SCENARIO_READY: 'phaser:scenarioReady',  // a scenario is staged; carries instruction + maneuver
+  DRIVE_START: 'phaser:driveStart',        // the car has begun moving; enable controls
+  OUTCOME: 'phaser:outcome',               // scenario resolved; carries { isCorrect, reason, timeMs }
 } as const
 
 // Events emitted by React → consumed by Phaser
 export const REACT_EVENTS = {
-  PLAYER_CHOICE: 'react:playerChoice',
   START_SCENARIO: 'react:startScenario',
   NEXT_SCENARIO: 'react:nextScenario',
 } as const

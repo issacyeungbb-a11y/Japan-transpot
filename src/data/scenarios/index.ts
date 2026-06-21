@@ -1,19 +1,7 @@
-import { standardLightScenarios } from './standardLights'
-import { arrowSignalScenarios } from './arrowSignals'
-import { flashingLightScenarios } from './flashingLights'
-import { pedestrianScenarios } from './pedestrian'
-import { priorityRoadScenarios } from './priorityRoad'
-import { oneWayScenarios } from './oneWay'
+import { drivingScenarios } from './driving'
 import type { Scenario } from '../types'
 
-export const ALL_SCENARIOS: Scenario[] = [
-  ...standardLightScenarios,
-  ...arrowSignalScenarios,
-  ...flashingLightScenarios,
-  ...pedestrianScenarios,
-  ...priorityRoadScenarios,
-  ...oneWayScenarios,
-]
+export const ALL_SCENARIOS: Scenario[] = drivingScenarios
 
 export function getScenarioById(id: string): Scenario | undefined {
   return ALL_SCENARIOS.find((s) => s.id === id)
