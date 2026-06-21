@@ -1,0 +1,67 @@
+{
+  "game": {
+    "title": "沖縄交通チャレンジ",
+    "subtitle": "日本の道路ルールシミュレーション"
+  },
+  "menu": {
+    "study": "学習モード",
+    "study_desc": "タイマーなし、ルールを学ぼう",
+    "normal": "ノーマルモード",
+    "normal_desc": "10秒で判断、ライフ3回",
+    "challenge": "チャレンジモード",
+    "challenge_desc": "ノーマルクリア後に解放",
+    "start": "ゲームスタート",
+    "how_to_play": "遊び方"
+  },
+  "hud": {
+    "score": "スコア",
+    "lives": "ライフ",
+    "timer": "秒",
+    "scenario": "シナリオ"
+  },
+  "decision": {
+    "prompt": "この状況でどうしますか？",
+    "timeout": "時間切れ！"
+  },
+  "feedback": {
+    "correct": "正解！",
+    "incorrect": "不正解",
+    "law": "関連法規",
+    "common_mistake": "よくある間違い",
+    "next": "次の問題",
+    "explanation": "解説"
+  },
+  "results": {
+    "title": "ゲーム終了",
+    "score": "最終スコア",
+    "accuracy": "正答率",
+    "streak_best": "最高コンボ",
+    "stars_1": "もっと練習しよう！",
+    "stars_2": "なかなかいいぞ！",
+    "stars_3": "素晴らしい！",
+    "play_again": "もう一度プレイ",
+    "back_menu": "メインメニューへ",
+    "review": "間違いを復習"
+  },
+  "lights": {
+    "standard_red": "赤信号",
+    "standard_yellow": "黄信号",
+    "standard_green": "青信号",
+    "arrow_left": "左折矢印",
+    "arrow_straight": "直進矢印",
+    "arrow_right": "右折矢印",
+    "flash_red": "赤色点滅",
+    "flash_yellow": "黄色点滅",
+    "pedestrian_walk": "青人",
+    "pedestrian_flash": "青人点滅",
+    "pedestrian_stop": "赤人"
+  },
+  "howto": {
+    "title": "遊び方",
+    "line1": "沖縄での実際の運転状況をシミュレーション",
+    "line2": "信号や特殊な道路状況で正しい行動を選択",
+    "line3": "各問題に詳しい法規解説付き",
+    "line4": "注意：日本は左側通行です！",
+    "close": "わかった"
+  }
+}
