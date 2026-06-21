@@ -5,11 +5,11 @@
   },
   "menu": {
     "study": "学習モード",
-    "study_desc": "タイマーなし、ルールを学ぼう",
+    "study_desc": "ライフ無限、気軽に練習",
     "normal": "ノーマルモード",
-    "normal_desc": "10秒で判断、ライフ3回",
+    "normal_desc": "リアルタイム運転、ライフ3回",
     "challenge": "チャレンジモード",
-    "challenge_desc": "ノーマルクリア後に解放",
+    "challenge_desc": "ライフ1回、難易度順",
     "start": "ゲームスタート",
     "how_to_play": "遊び方"
   },
@@ -19,16 +19,27 @@
     "timer": "秒",
     "scenario": "シナリオ"
   },
-  "decision": {
-    "prompt": "この状況でどうしますか？",
-    "timeout": "時間切れ！"
+  "drive": {
+    "get_ready": "準備して出発！",
+    "throttle": "アクセル",
+    "brake": "ブレーキ",
+    "steer": "ハンドル"
+  },
+  "reason": {
+    "success": "安全に通過！",
+    "ran_red": "信号無視／一時不停止で進入",
+    "no_full_stop": "完全に停止していません",
+    "collision": "衝突しました！",
+    "wrong_way": "進行方向が違います",
+    "off_road": "車線を外れました",
+    "timeout": "時間内に完了できませんでした"
   },
   "feedback": {
     "correct": "正解！",
-    "incorrect": "不正解",
+    "incorrect": "失敗",
     "law": "関連法規",
     "common_mistake": "よくある間違い",
-    "next": "次の問題",
+    "next": "次へ",
     "explanation": "解説"
   },
   "results": {
@@ -41,7 +52,7 @@
     "stars_3": "素晴らしい！",
     "play_again": "もう一度プレイ",
     "back_menu": "メインメニューへ",
-    "review": "間違いを復習"
+    "review": "ミスを復習"
   },
   "lights": {
     "standard_red": "赤信号",
@@ -58,9 +69,9 @@
   },
   "howto": {
     "title": "遊び方",
-    "line1": "沖縄での実際の運転状況をシミュレーション",
-    "line2": "信号や特殊な道路状況で正しい行動を選択",
-    "line3": "各問題に詳しい法規解説付き",
+    "line1": "アクセル🟢・ブレーキ🔴・ハンドル⬅️➡️で運転（PCは矢印キー）",
+    "line2": "信号や路上の状況を見て、その場で正しい運転判断を",
+    "line3": "衝突・信号無視・逆走は失敗になります",
     "line4": "注意：日本は左側通行です！",
     "close": "わかった"
   }

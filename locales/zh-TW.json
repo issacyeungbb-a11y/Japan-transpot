@@ -5,11 +5,11 @@
   },
   "menu": {
     "study": "學習模式",
-    "study_desc": "無計時，先了解規則",
+    "study_desc": "無限生命，輕鬆練習",
     "normal": "一般模式",
-    "normal_desc": "10秒決策，3條生命",
+    "normal_desc": "即時駕駛，3條生命",
     "challenge": "挑戰模式",
-    "challenge_desc": "完成一般模式後解鎖",
+    "challenge_desc": "1條生命，由淺入深",
     "start": "開始遊戲",
     "how_to_play": "玩法說明"
   },
@@ -19,16 +19,27 @@
     "timer": "秒",
     "scenario": "情境"
   },
-  "decision": {
-    "prompt": "呢個情況你應該點做？",
-    "timeout": "時間到！"
+  "drive": {
+    "get_ready": "準備好就出發！",
+    "throttle": "油門",
+    "brake": "煞車",
+    "steer": "軚"
+  },
+  "reason": {
+    "success": "安全通過！",
+    "ran_red": "衝燈／未讓行就駛入路口",
+    "no_full_stop": "冇完全停車（一時停止）",
+    "collision": "發生碰撞！",
+    "wrong_way": "駛錯方向",
+    "off_road": "偏離車道",
+    "timeout": "太耐都未完成"
   },
   "feedback": {
     "correct": "正確！",
-    "incorrect": "答錯了",
+    "incorrect": "失敗",
     "law": "相關法規",
     "common_mistake": "常見誤解",
-    "next": "下一題",
+    "next": "下一個",
     "explanation": "講解"
   },
   "results": {
@@ -41,7 +52,7 @@
     "stars_3": "出色！",
     "play_again": "再玩一次",
     "back_menu": "返回主選單",
-    "review": "重溫錯題"
+    "review": "重溫失誤"
   },
   "lights": {
     "standard_red": "紅燈",
@@ -58,9 +69,9 @@
   },
   "howto": {
     "title": "玩法說明",
-    "line1": "遊戲模擬日本沖繩實際駕車情況",
-    "line2": "遇到交通燈或特殊路況時，選擇正確嘅行動",
-    "line3": "每題附有詳細法規講解",
+    "line1": "用油門🟢、煞車🔴、軚⬅️➡️ 控制架車（電腦可用方向鍵）",
+    "line2": "見到交通燈或路面情況，即時做出正確駕駛判斷",
+    "line3": "撞車、衝紅燈、走錯方向都會失敗",
     "line4": "注意：日本係靠左行駛！",
     "close": "明白了"
   }
