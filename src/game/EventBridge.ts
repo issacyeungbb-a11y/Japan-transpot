@@ -27,6 +27,7 @@ export const PHASER_EVENTS = {
   SHOW_DECISION: 'phaser:showDecision',
   PLAY_CONSEQUENCE: 'phaser:playConsequence',
   SCENARIO_READY: 'phaser:scenarioReady',
+  SCENE_READY: 'phaser:sceneReady',        // emitted once when ScenarioScene.create() finishes
   APPROACH_COMPLETE: 'phaser:approachComplete',
 } as const
 

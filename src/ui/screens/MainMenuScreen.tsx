@@ -18,7 +18,7 @@ export function MainMenuScreen({ onStart }: Props) {
 
   const handleStart = (mode: Mode) => {
     const ids = mode === 'challenge'
-      ? ALL_SCENARIOS.sort((a, b) => a.difficulty - b.difficulty).map((s) => s.id)
+      ? [...ALL_SCENARIOS].sort((a, b) => a.difficulty - b.difficulty).map((s) => s.id)
       : getShuffledScenarioIds(mode === 'study' ? ALL_SCENARIOS.length : 10)
     startSession(mode, ids)
     onStart()

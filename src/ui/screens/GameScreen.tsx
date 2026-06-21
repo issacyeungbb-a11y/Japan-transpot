@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { PhaserGame } from '../../game/PhaserGame'
 import { HUD } from '../components/HUD'
 import { DecisionOverlay } from './DecisionOverlay'
@@ -30,6 +30,24 @@ export function GameScreen({ onSessionEnd }: Props) {
   const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null)
   const [timerSeconds, setTimerSeconds] = useState<number | null>(null)
 
+  // Track whether the Phaser ScenarioScene has registered its listeners yet.
+  // START_SCENARIO must not be emitted before the scene's create() runs.
+  const sceneReadyRef = useRef(false)
+  const pendingScenarioRef = useRef<Scenario | null>(null)
+
+  // Listen for the one-time SCENE_READY signal from Phaser's ScenarioScene.create()
+  useEffect(() => {
+    const handler = () => {
+      sceneReadyRef.current = true
+      if (pendingScenarioRef.current) {
+        bridge.emit(REACT_EVENTS.START_SCENARIO, pendingScenarioRef.current)
+        pendingScenarioRef.current = null
+      }
+    }
+    bridge.on(PHASER_EVENTS.SCENE_READY, handler)
+    return () => bridge.off(PHASER_EVENTS.SCENE_READY, handler)
+  }, [])
+
   // Load and start the current scenario
   useEffect(() => {
     if (!session) return
@@ -44,7 +62,12 @@ export function GameScreen({ onSessionEnd }: Props) {
     setPhase('playing')
     setDecision(null)
     setLastChoice(null)
-    bridge.emit(REACT_EVENTS.START_SCENARIO, scenario)
+    // Only emit once Phaser's listener is registered; otherwise queue it
+    if (sceneReadyRef.current) {
+      bridge.emit(REACT_EVENTS.START_SCENARIO, scenario)
+    } else {
+      pendingScenarioRef.current = scenario
+    }
   }, [session?.currentIndex])
 
   // Listen for Phaser show-decision event

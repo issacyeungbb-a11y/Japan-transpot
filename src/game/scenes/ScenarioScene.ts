@@ -18,7 +18,6 @@ export class ScenarioScene extends Phaser.Scene {
   private flashTimers: Phaser.Time.TimerEvent[] = []
 
   private currentScenario: Scenario | null = null
-  private pathTween: Phaser.Tweens.Tween | null = null
   private decisionPending = false
 
   constructor() {
@@ -33,6 +32,9 @@ export class ScenarioScene extends Phaser.Scene {
     bridge.on(REACT_EVENTS.START_SCENARIO, this.onStartScenario)
     bridge.on(REACT_EVENTS.PLAYER_CHOICE, this.onPlayerChoice)
     bridge.on(REACT_EVENTS.NEXT_SCENARIO, this.onNextScenario)
+
+    // Signal React that listeners are registered and we're ready to receive events
+    bridge.emit(PHASER_EVENTS.SCENE_READY)
   }
 
   destroy() {
@@ -345,10 +347,8 @@ export class ScenarioScene extends Phaser.Scene {
     this.currentScenario = scenario as Scenario
     this.decisionPending = false
 
-    if (this.pathTween) {
-      this.pathTween.stop()
-      this.pathTween = null
-    }
+    // Kill any tweens from the previous scenario so they don't conflict
+    this.tweens.killTweensOf(this.car)
 
     this.buildRoad()
     this.repositionCarToStart()
@@ -461,6 +461,7 @@ export class ScenarioScene extends Phaser.Scene {
   }
 
   private onNextScenario = () => {
+    this.tweens.killTweensOf(this.car)
     this.clearTrafficLights()
     this.clearNPCs()
     this.repositionCarToStart()
