@@ -79,6 +79,8 @@ export interface ScenarioEvaluation {
   allowedManeuvers?: Maneuver[]
 }
 
+export type RoadType = 'cross' | 't-junction' | 'straight'
+
 export interface Scenario {
   id: string
   category: 'standard' | 'arrow' | 'flashing' | 'pedestrian' | 'priority' | 'oneway'
@@ -87,6 +89,8 @@ export interface Scenario {
   instruction: BilingualText
   difficulty: 1 | 2 | 3
   maneuver: Maneuver
+  // Road layout; defaults to 'cross' when omitted.
+  roadType?: RoadType
   light: TrafficLightState | null
   lightChanges?: LightChange[]
   npcs?: ScenarioNPC[]

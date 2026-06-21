@@ -1,21 +1,27 @@
 import type { Scenario } from '../types'
 
-// Geometry mirrors ScenarioScene (Japan = left-hand traffic).
-const SB_X = 420 // oncoming southbound lane
-const CROSS_Y = 230 // crossing (priority-road) traffic, near intersection centre
-const PED_Y = 300 // pedestrian crossing on the player's approach
+// Mirror of ScenarioScene world geometry (CY=520, WORLD_HEIGHT=1000).
+const CX = 400
+const CY = 520
+const INT = 80
+const ROAD_W = 80
+
+const SB_X     = CX + 20       // 420 — oncoming southbound lane
+const CROSS_Y  = CY + 4        // 524 — crossing (priority-road) traffic, near intersection centre
+const PED_Y    = CY + INT / 2 + 48 // 608 — pedestrian crossing on the player's south approach
 
 export const drivingScenarios: Scenario[] = [
   // 1) Solid red — stop and wait for green
   {
     id: 'std-red',
     category: 'standard',
+    roadType: 'cross',
     title: { 'zh-TW': '紅燈停車', ja: '赤信号で停止' },
     instruction: { 'zh-TW': '直行通過路口', ja: '交差点を直進' },
     difficulty: 1,
     maneuver: 'straight',
     light: { type: 'standard', color: 'red' },
-    lightChanges: [{ atMs: 3000, state: { type: 'standard', color: 'green' } }],
+    lightChanges: [{ atMs: 3500, state: { type: 'standard', color: 'green' } }],
     evaluation: { waitForGo: true },
     feedback: {
       explanation: {
@@ -34,6 +40,7 @@ export const drivingScenarios: Scenario[] = [
   {
     id: 'std-green',
     category: 'standard',
+    roadType: 'cross',
     title: { 'zh-TW': '青燈通行', ja: '青信号で進行' },
     instruction: { 'zh-TW': '直行通過路口', ja: '交差点を直進' },
     difficulty: 1,
@@ -53,12 +60,13 @@ export const drivingScenarios: Scenario[] = [
   {
     id: 'std-yellow',
     category: 'standard',
+    roadType: 'cross',
     title: { 'zh-TW': '黃燈——停車線前', ja: '黄信号——停止線の手前' },
     instruction: { 'zh-TW': '直行通過路口', ja: '交差点を直進' },
     difficulty: 2,
     maneuver: 'straight',
     light: { type: 'standard', color: 'yellow' },
-    lightChanges: [{ atMs: 3200, state: { type: 'standard', color: 'green' } }],
+    lightChanges: [{ atMs: 3500, state: { type: 'standard', color: 'green' } }],
     evaluation: { waitForGo: true },
     feedback: {
       explanation: {
@@ -77,13 +85,22 @@ export const drivingScenarios: Scenario[] = [
   {
     id: 'std-right-yield',
     category: 'standard',
+    roadType: 'cross',
     title: { 'zh-TW': '右轉讓直行車', ja: '右折時は直進車を優先' },
     instruction: { 'zh-TW': '右轉（讓對向直行車先行）', ja: '右折（対向直進車を先に）' },
     difficulty: 3,
     maneuver: 'right',
     light: { type: 'standard', color: 'green' },
     npcs: [
-      { id: 'oncoming', type: 'vehicle', startX: SB_X, startY: -30, endX: SB_X, endY: 480, speed: 150, startAtMs: 0, color: 0xcc2222 },
+      {
+        id: 'oncoming',
+        type: 'vehicle',
+        startX: SB_X, startY: -40,
+        endX: SB_X, endY: 1040,
+        speed: 150,
+        startAtMs: 0,
+        color: 0xcc2222,
+      },
     ],
     evaluation: { allowedManeuvers: ['right'] },
     feedback: {
@@ -99,13 +116,22 @@ export const drivingScenarios: Scenario[] = [
   {
     id: 'ped-cross',
     category: 'pedestrian',
+    roadType: 'cross',
     title: { 'zh-TW': '行人橫過——讓行', ja: '横断歩行者に道を譲る' },
     instruction: { 'zh-TW': '直行通過路口', ja: '交差点を直進' },
     difficulty: 1,
     maneuver: 'straight',
     light: { type: 'standard', color: 'green' },
     npcs: [
-      { id: 'ped', type: 'pedestrian', startX: 330, startY: PED_Y, endX: 480, endY: PED_Y, speed: 52, startAtMs: 500, color: 0xffd54f },
+      {
+        id: 'ped',
+        type: 'pedestrian',
+        startX: CX - ROAD_W / 2 - 10, startY: PED_Y,
+        endX:   CX + ROAD_W / 2 + 10, endY:   PED_Y,
+        speed: 52,
+        startAtMs: 500,
+        color: 0xffd54f,
+      },
     ],
     evaluation: {},
     feedback: {
@@ -125,13 +151,23 @@ export const drivingScenarios: Scenario[] = [
   {
     id: 'left-ped',
     category: 'pedestrian',
+    roadType: 'cross',
     title: { 'zh-TW': '左轉遇行人', ja: '左折時の歩行者' },
     instruction: { 'zh-TW': '左轉（讓橫過嘅行人）', ja: '左折（横断歩行者を優先）' },
     difficulty: 2,
     maneuver: 'left',
     light: { type: 'standard', color: 'green' },
     npcs: [
-      { id: 'ped', type: 'pedestrian', startX: 350, startY: 185, endX: 350, endY: 272, speed: 42, startAtMs: 400, color: 0xffd54f },
+      {
+        id: 'ped',
+        type: 'pedestrian',
+        // crosses the west exit road (vertical crossing near the west side)
+        startX: CX - INT / 2 - 10, startY: CY - 30,
+        endX:   CX - INT / 2 - 10, endY:   CY + 30,
+        speed: 42,
+        startAtMs: 400,
+        color: 0xffd54f,
+      },
     ],
     evaluation: { allowedManeuvers: ['left'] },
     feedback: {
@@ -147,6 +183,7 @@ export const drivingScenarios: Scenario[] = [
   {
     id: 'flash-red',
     category: 'flashing',
+    roadType: 'straight',
     title: { 'zh-TW': '紅色閃爍——一時停止', ja: '赤色点滅——一時停止' },
     instruction: { 'zh-TW': '直行（紅閃要完全停低先過）', ja: '直進（赤点滅は一時停止）' },
     difficulty: 2,
@@ -170,6 +207,7 @@ export const drivingScenarios: Scenario[] = [
   {
     id: 'flash-yellow',
     category: 'flashing',
+    roadType: 'straight',
     title: { 'zh-TW': '黃色閃爍——注意通行', ja: '黄色点滅——注意して進行' },
     instruction: { 'zh-TW': '直行（注意減速通過）', ja: '直進（注意して通過）' },
     difficulty: 1,
@@ -189,6 +227,7 @@ export const drivingScenarios: Scenario[] = [
   {
     id: 'arrow-red-right',
     category: 'arrow',
+    roadType: 'cross',
     title: { 'zh-TW': '紅燈＋右箭頭', ja: '赤信号＋右矢印' },
     instruction: { 'zh-TW': '右轉（紅燈但右箭頭亮起）', ja: '右折（赤でも右矢印が点灯）' },
     difficulty: 3,
@@ -212,13 +251,22 @@ export const drivingScenarios: Scenario[] = [
   {
     id: 'priority-yield',
     category: 'priority',
+    roadType: 'cross',
     title: { 'zh-TW': '無燈路口——讓優先道路', ja: '無信号——優先道路に譲る' },
     instruction: { 'zh-TW': '直行（橫向為優先道路）', ja: '直進（横は優先道路）' },
     difficulty: 3,
     maneuver: 'straight',
     light: null,
     npcs: [
-      { id: 'cross', type: 'vehicle', startX: -40, startY: CROSS_Y, endX: 840, endY: CROSS_Y, speed: 205, startAtMs: 0, color: 0xe69a2e },
+      {
+        id: 'cross',
+        type: 'vehicle',
+        startX: -40, startY: CROSS_Y,
+        endX: 840,   endY: CROSS_Y,
+        speed: 210,
+        startAtMs: 0,
+        color: 0xe69a2e,
+      },
     ],
     evaluation: {},
     feedback: {
@@ -230,10 +278,11 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
-  // 11) One-way street — only the legal direction
+  // 11) One-way street — only the legal direction (left)
   {
     id: 'oneway-left',
     category: 'oneway',
+    roadType: 't-junction',
     title: { 'zh-TW': '一方通行——揀啱方向', ja: '一方通行——正しい方向へ' },
     instruction: { 'zh-TW': '前方一方通行，只可左轉', ja: '前方は一方通行、左折のみ可' },
     difficulty: 2,

@@ -8,43 +8,52 @@ import type {
   ScenarioNPC,
   Maneuver,
   OutcomeReason,
+  RoadType,
 } from '../../data/types'
 import { GAME_WIDTH, GAME_HEIGHT } from '../GameConfig'
 
-// ---- Road / colour constants ----
+// ---- Colours ----
 const ROAD_COLOR = 0x4a4a4a
 const ROAD_LINE = 0xffffff
 const SIDEWALK_COLOR = 0x8a7c6a
 const GRASS_COLOR = 0x3d7a30
 const INTERSECTION_COLOR = 0x555555
 
-// ---- Geometry ----
+// ---- World geometry ----
+// The world is taller than the camera viewport; the camera follows the car.
+export const WORLD_HEIGHT = 1000
 const CX = GAME_WIDTH / 2 // 400
-const CY = GAME_HEIGHT / 2 // 225
+const CY = 520             // intersection centre in world coords
+
 const ROAD_W = 80
-const INT = 80 // intersection size
+const INT = 80  // intersection square half-side * 2
 
-// Japan = left-hand traffic. A northbound car keeps to the LEFT (west, smaller x).
-const NB_LANE_X = CX - 20 // player (northbound)
+// Japan left-hand traffic: player (northbound) keeps LEFT lane.
+const NB_LANE_X = CX - 20 // 380
 
-const STOP_LINE_Y = CY + INT / 2 // 265 — player stops before (south of) this
-const SPAWN_Y = GAME_HEIGHT - 22
-const LIGHT_X = CX + INT / 2 + 18
-const LIGHT_Y = CY - INT / 2 - 6
+// Stop line is south of the pedestrian crossing, south of the intersection.
+const STOP_LINE_Y = CY + INT / 2 + 50 // 610
 
-// Goal lines (reaching one resolves the maneuver)
-const GOAL_STRAIGHT_Y = CY - 80
-const GOAL_RIGHT_X = CX + 90
-const GOAL_LEFT_X = CX - 90
+// Player spawns near the bottom of the world.
+const SPAWN_Y = WORLD_HEIGHT - 60 // 940
+
+// Traffic light pole position (NE corner of intersection).
+const LIGHT_X = CX + INT / 2 + 18 // 458
+const LIGHT_Y = CY - INT / 2 - 6  // 474
+
+// Goal zones – reaching one of these resolves the maneuver.
+const GOAL_STRAIGHT_Y = CY - 220  // 300
+const GOAL_RIGHT_X  = CX + 160    // 560
+const GOAL_LEFT_X   = CX - 160    // 240
 
 // ---- Physics ----
-const CRUISE_SPEED = 95 // px/s the car rolls at once driving begins
-const MAX_SPEED = 240
-const ACCEL = 165
-const BRAKE_DECEL = 340
-const COAST_FRICTION = 22
-const TURN_RATE = 2.6 // rad/s at full effect
-const STOP_EPS = 8 // below this speed the car counts as "stopped"
+const CRUISE_SPEED = 90
+const MAX_SPEED = 220
+const ACCEL = 150
+const BRAKE_DECEL = 320
+const COAST_FRICTION = 20
+const TURN_RATE = 2.5  // rad/s at full steering
+const STOP_EPS = 8
 
 // ---- Collision radii ----
 const CAR_R = 19
@@ -61,6 +70,7 @@ interface NpcSprite {
 export class ScenarioScene extends Phaser.Scene {
   private car!: Phaser.GameObjects.Container
   private roadGraphics!: Phaser.GameObjects.Graphics
+  private goalGraphics!: Phaser.GameObjects.Graphics
   private lightContainer: Phaser.GameObjects.Container | null = null
   private lightLamp: Phaser.GameObjects.Graphics | null = null
   private npcs: NpcSprite[] = []
@@ -68,6 +78,7 @@ export class ScenarioScene extends Phaser.Scene {
 
   private scenario: Scenario | null = null
   private phase: Phase = 'idle'
+  private currentRoadType: RoadType = 'cross'
 
   // car kinematic state
   private speed = 0
@@ -91,9 +102,16 @@ export class ScenarioScene extends Phaser.Scene {
   }
 
   create() {
-    this.buildRoad()
+    this.cameras.main.setBounds(0, 0, GAME_WIDTH, WORLD_HEIGHT)
+
+    this.roadGraphics = this.add.graphics()
+    this.goalGraphics = this.add.graphics()
+    this.buildRoad('cross', 'straight')
+
     this.car = this.createCar()
     this.resetCarToSpawn()
+
+    this.cameras.main.startFollow(this.car, true, 1, 1, 0, 80)
 
     if (this.input.keyboard) {
       this.cursors = this.input.keyboard.createCursorKeys()
@@ -117,49 +135,148 @@ export class ScenarioScene extends Phaser.Scene {
 
   // ================= Road =================
 
-  private buildRoad() {
-    if (this.roadGraphics) this.roadGraphics.destroy()
-    this.roadGraphics = this.add.graphics()
+  private buildRoad(roadType: RoadType, maneuver: Maneuver) {
+    this.currentRoadType = roadType
     const g = this.roadGraphics
+    g.clear()
 
+    // Grass background (full world height)
     g.fillStyle(GRASS_COLOR)
-    g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
+    g.fillRect(0, 0, GAME_WIDTH, WORLD_HEIGHT)
 
-    // Sidewalks
+    if (roadType === 'straight') {
+      this.drawStraightRoad(g)
+    } else {
+      this.drawCrossRoad(g, roadType)
+    }
+
+    this.drawGoalMarker(maneuver)
+  }
+
+  private drawStraightRoad(g: Phaser.GameObjects.Graphics) {
+    // Sidewalk strips alongside the road
     g.fillStyle(SIDEWALK_COLOR)
-    g.fillRect(CX - ROAD_W / 2 - 8, 0, ROAD_W + 16, GAME_HEIGHT)
-    g.fillRect(0, CY - ROAD_W / 2 - 8, GAME_WIDTH, ROAD_W + 16)
+    g.fillRect(CX - ROAD_W / 2 - 8, 0, ROAD_W + 16, WORLD_HEIGHT)
 
     // Road surface
     g.fillStyle(ROAD_COLOR)
-    g.fillRect(CX - ROAD_W / 2, 0, ROAD_W, GAME_HEIGHT)
-    g.fillRect(0, CY - ROAD_W / 2, GAME_WIDTH, ROAD_W)
-
-    // Intersection
-    g.fillStyle(INTERSECTION_COLOR)
-    g.fillRect(CX - INT / 2, CY - INT / 2, INT, INT)
+    g.fillRect(CX - ROAD_W / 2, 0, ROAD_W, WORLD_HEIGHT)
 
     // Centre dashes
     g.fillStyle(ROAD_LINE)
-    for (let y = 0; y < CY - INT / 2; y += 30) g.fillRect(CX - 2, y, 4, 18)
-    for (let y = CY + INT / 2 + 12; y < GAME_HEIGHT; y += 30) g.fillRect(CX - 2, y, 4, 18)
-    for (let x = 0; x < CX - INT / 2; x += 30) g.fillRect(x, CY - 2, 18, 4)
+    for (let y = 20; y < WORLD_HEIGHT; y += 30) {
+      g.fillRect(CX - 2, y, 4, 18)
+    }
+
+    // Stop line south of the light
+    g.fillStyle(ROAD_LINE)
+    g.fillRect(CX - ROAD_W / 2, STOP_LINE_Y, ROAD_W, 4)
+  }
+
+  private drawCrossRoad(g: Phaser.GameObjects.Graphics, roadType: RoadType) {
+    // Sidewalks
+    g.fillStyle(SIDEWALK_COLOR)
+    g.fillRect(CX - ROAD_W / 2 - 8, 0, ROAD_W + 16, WORLD_HEIGHT)
+    g.fillRect(0, CY - ROAD_W / 2 - 8, GAME_WIDTH, ROAD_W + 16)
+
+    // Road surfaces
+    g.fillStyle(ROAD_COLOR)
+    g.fillRect(CX - ROAD_W / 2, 0, ROAD_W, WORLD_HEIGHT)
+    g.fillRect(0, CY - ROAD_W / 2, GAME_WIDTH, ROAD_W)
+
+    // Intersection box
+    g.fillStyle(INTERSECTION_COLOR)
+    g.fillRect(CX - INT / 2, CY - INT / 2, INT, INT)
+
+    // For t-junction: paint over the north arm with grass+sidewalk to block it visually
+    if (roadType === 't-junction') {
+      g.fillStyle(SIDEWALK_COLOR)
+      g.fillRect(CX - ROAD_W / 2 - 8, 0, ROAD_W + 16, CY - INT / 2)
+      g.fillStyle(GRASS_COLOR)
+      g.fillRect(CX - ROAD_W / 2, 0, ROAD_W, CY - INT / 2)
+      // Dead-end wall at north edge of intersection
+      g.fillStyle(0x886655)
+      g.fillRect(CX - ROAD_W / 2, CY - INT / 2 - 6, ROAD_W, 6)
+    }
+
+    // Dashed centre lines
+    g.fillStyle(ROAD_LINE)
+    // North arm (only for cross)
+    if (roadType === 'cross') {
+      for (let y = 20; y < CY - INT / 2; y += 30) g.fillRect(CX - 2, y, 4, 18)
+    }
+    // South arm
+    for (let y = CY + INT / 2 + 12; y < WORLD_HEIGHT; y += 30) g.fillRect(CX - 2, y, 4, 18)
+    // East arm
     for (let x = CX + INT / 2 + 12; x < GAME_WIDTH; x += 30) g.fillRect(x, CY - 2, 18, 4)
+    // West arm
+    for (let x = 20; x < CX - INT / 2; x += 30) g.fillRect(x, CY - 2, 18, 4)
 
     // Stop lines (all four approaches)
     g.fillStyle(ROAD_LINE)
-    g.fillRect(CX - ROAD_W / 2, CY + INT / 2, ROAD_W, 4) // player approach (south)
-    g.fillRect(CX - ROAD_W / 2, CY - INT / 2 - 4, ROAD_W, 4)
-    g.fillRect(CX - INT / 2 - 4, CY - ROAD_W / 2, 4, ROAD_W)
-    g.fillRect(CX + INT / 2, CY - ROAD_W / 2, 4, ROAD_W)
-
-    // Zebra crossing on the player's approach (south of the intersection)
-    g.fillStyle(ROAD_LINE)
-    for (let i = 0; i < 5; i++) {
-      g.fillRect(CX - ROAD_W / 2 + i * 16, CY + INT / 2 + 26, 10, 16)
+    g.fillRect(CX - ROAD_W / 2, CY + INT / 2, ROAD_W, 4)      // south (player)
+    if (roadType === 'cross') {
+      g.fillRect(CX - ROAD_W / 2, CY - INT / 2 - 4, ROAD_W, 4) // north
     }
-    // Player's physical stop line, south of the crosswalk
-    g.fillRect(CX - ROAD_W / 2, CY + INT / 2 + 50, ROAD_W, 4)
+    g.fillRect(CX - INT / 2 - 4, CY - ROAD_W / 2, 4, ROAD_W)   // west
+    g.fillRect(CX + INT / 2, CY - ROAD_W / 2, 4, ROAD_W)        // east
+
+    // Zebra crossing on player's south approach
+    for (let i = 0; i < 5; i++) {
+      g.fillRect(CX - ROAD_W / 2 + i * 16, CY + INT / 2 + 16, 10, 18)
+    }
+    // Physical stop line south of crosswalk
+    g.fillRect(CX - ROAD_W / 2, STOP_LINE_Y, ROAD_W, 4)
+  }
+
+  private drawGoalMarker(maneuver: Maneuver) {
+    const g = this.goalGraphics
+    g.clear()
+
+    const ARROW_COLOR = 0x00e5ff
+    g.fillStyle(ARROW_COLOR, 0.7)
+
+    if (maneuver === 'straight') {
+      // Three upward chevrons on the north road
+      for (let i = 0; i < 3; i++) {
+        const y = GOAL_STRAIGHT_Y + i * 40
+        this.drawUpArrow(g, CX, y)
+      }
+      // Finish stripe
+      g.fillStyle(0x00e5ff, 0.35)
+      g.fillRect(CX - ROAD_W / 2, GOAL_STRAIGHT_Y - 10, ROAD_W, 8)
+    } else if (maneuver === 'right') {
+      // Rightward chevrons on the east arm
+      for (let i = 0; i < 3; i++) {
+        const x = GOAL_RIGHT_X - i * 40
+        this.drawRightArrow(g, x, CY)
+      }
+      g.fillStyle(0x00e5ff, 0.35)
+      g.fillRect(GOAL_RIGHT_X + 5, CY - ROAD_W / 2, 8, ROAD_W)
+    } else {
+      // Leftward chevrons on the west arm
+      for (let i = 0; i < 3; i++) {
+        const x = GOAL_LEFT_X + i * 40
+        this.drawLeftArrow(g, x, CY)
+      }
+      g.fillStyle(0x00e5ff, 0.35)
+      g.fillRect(GOAL_LEFT_X - 13, CY - ROAD_W / 2, 8, ROAD_W)
+    }
+  }
+
+  private drawUpArrow(g: Phaser.GameObjects.Graphics, x: number, y: number) {
+    g.fillTriangle(x - 10, y + 6, x + 10, y + 6, x, y - 10)
+    g.fillRect(x - 4, y + 6, 8, 12)
+  }
+
+  private drawRightArrow(g: Phaser.GameObjects.Graphics, x: number, y: number) {
+    g.fillTriangle(x + 10, y, x - 6, y - 10, x - 6, y + 10)
+    g.fillRect(x - 18, y - 4, 12, 8)
+  }
+
+  private drawLeftArrow(g: Phaser.GameObjects.Graphics, x: number, y: number) {
+    g.fillTriangle(x - 10, y, x + 6, y - 10, x + 6, y + 10)
+    g.fillRect(x + 6, y - 4, 12, 8)
   }
 
   // ================= Car =================
@@ -169,9 +286,9 @@ export class ScenarioScene extends Phaser.Scene {
     g.fillStyle(0x1565c0)
     g.fillRoundedRect(-16, -26, 32, 52, 6)
     g.fillStyle(0x90caf9)
-    g.fillRect(-11, -19, 22, 14) // windshield
+    g.fillRect(-11, -19, 22, 14)
     g.fillStyle(0x90caf9)
-    g.fillRect(-11, 9, 22, 10) // rear window
+    g.fillRect(-11, 9, 22, 10)
     g.fillStyle(0x111111)
     g.fillRect(-19, -21, 6, 12)
     g.fillRect(13, -21, 6, 12)
@@ -211,7 +328,9 @@ export class ScenarioScene extends Phaser.Scene {
     const lamp = this.add.graphics()
     this.renderLamp(g, lamp, state)
 
-    const c = this.add.container(LIGHT_X, LIGHT_Y, [g, lamp])
+    const lx = this.currentRoadType === 'straight' ? CX + ROAD_W / 2 + 12 : LIGHT_X
+    const ly = this.currentRoadType === 'straight' ? STOP_LINE_Y - 30 : LIGHT_Y
+    const c = this.add.container(lx, ly, [g, lamp])
     c.setDepth(6)
     this.lightContainer = c
     this.lightLamp = lamp
@@ -229,7 +348,6 @@ export class ScenarioScene extends Phaser.Scene {
     }
   }
 
-  // redraw lamp colours for the current state on an existing container
   private renderLamp(
     housing: Phaser.GameObjects.Graphics,
     lamp: Phaser.GameObjects.Graphics,
@@ -264,8 +382,7 @@ export class ScenarioScene extends Phaser.Scene {
       housing.fillRect(-12, -6, 24, 34)
       lamp.fillStyle(0x33ddff)
       state.activeArrows.forEach((arrow, i) => {
-        const ay = 2 + i * 11
-        this.drawArrowGlyph(lamp, 0, ay, arrow)
+        this.drawArrowGlyph(lamp, 0, 2 + i * 11, arrow)
       })
     } else if (state.type === 'flashing') {
       const lit = state.color === 'red' ? 0xff2222 : 0xffcc00
@@ -277,7 +394,6 @@ export class ScenarioScene extends Phaser.Scene {
       lamp.fillStyle(lit, 0.3)
       lamp.fillCircle(0, -4, 17)
     } else {
-      // pedestrian
       const col = state.phase === 'stop' ? 0xff2222 : 0x00cc44
       housing.fillStyle(0x111111)
       housing.fillRoundedRect(-12, -32, 24, 64, 4)
@@ -309,7 +425,6 @@ export class ScenarioScene extends Phaser.Scene {
   private applyLightState(state: TrafficLightState) {
     this.currentLight = state
     if (state.type === 'flashing') {
-      // redraw + restart flashing
       this.drawLight(state)
     } else if (this.lightContainer && this.lightLamp) {
       this.flashTimer?.destroy()
@@ -334,7 +449,7 @@ export class ScenarioScene extends Phaser.Scene {
       const obj = def.type === 'pedestrian' ? this.createPedestrian(def.color) : this.createNPCCar(def.color)
       obj.setPosition(def.startX, def.startY)
       obj.setDepth(8)
-      obj.setVisible(false) // appears when its startAtMs elapses
+      obj.setVisible(false)
       this.npcs.push({ def, obj })
     })
   }
@@ -374,7 +489,9 @@ export class ScenarioScene extends Phaser.Scene {
     this.crossedLine = false
 
     this.tweens.killTweensOf(this.car)
-    this.buildRoad()
+
+    const roadType: RoadType = scenario.roadType ?? 'cross'
+    this.buildRoad(roadType, scenario.maneuver)
     this.resetCarToSpawn()
 
     this.clearLight()
@@ -388,14 +505,12 @@ export class ScenarioScene extends Phaser.Scene {
       maneuver: scenario.maneuver,
     })
 
-    // brief "get ready" pause, then the car starts rolling
     this.time.delayedCall(1700, () => {
       if (this.phase !== 'ready') return
       this.phase = 'drive'
       this.speed = CRUISE_SPEED
       this.driveStart = this.time.now
 
-      // schedule light changes relative to drive start
       scenario.lightChanges?.forEach((ch) => {
         this.time.delayedCall(ch.atMs, () => {
           if (this.phase === 'drive') this.applyLightState(ch.state)
@@ -429,10 +544,10 @@ export class ScenarioScene extends Phaser.Scene {
   }
 
   private readInput() {
-    const left = inputState.left || this.cursors?.left.isDown || this.keyA?.isDown || false
-    const right = inputState.right || this.cursors?.right.isDown || this.keyD?.isDown || false
-    const throttle = inputState.throttle || this.cursors?.up.isDown || this.keyW?.isDown || false
-    const brake = inputState.brake || this.cursors?.down.isDown || this.keyS?.isDown || false
+    const left     = inputState.left     || this.cursors?.left.isDown  || this.keyA?.isDown || false
+    const right    = inputState.right    || this.cursors?.right.isDown || this.keyD?.isDown || false
+    const throttle = inputState.throttle || this.cursors?.up.isDown    || this.keyW?.isDown || false
+    const brake    = inputState.brake    || this.cursors?.down.isDown  || this.keyS?.isDown || false
     return { left, right, throttle, brake }
   }
 
@@ -447,7 +562,6 @@ export class ScenarioScene extends Phaser.Scene {
       this.speed = Math.max(0, this.speed - COAST_FRICTION * dt)
     }
 
-    // steering only has effect while moving
     if (this.speed > STOP_EPS) {
       const steer = (right ? 1 : 0) - (left ? 1 : 0)
       const speedFactor = Math.min(1, this.speed / 120)
@@ -464,16 +578,12 @@ export class ScenarioScene extends Phaser.Scene {
   private updateNPCs(elapsed: number) {
     this.npcs.forEach(({ def, obj }) => {
       const t = elapsed - def.startAtMs
-      if (t < 0) {
-        obj.setVisible(false)
-        return
-      }
+      if (t < 0) { obj.setVisible(false); return }
       obj.setVisible(true)
       const dx = def.endX - def.startX
       const dy = def.endY - def.startY
       const dist = Math.hypot(dx, dy)
-      const travelled = (def.speed * t) / 1000
-      const progress = dist === 0 ? 1 : Math.min(1, travelled / dist)
+      const progress = dist === 0 ? 1 : Math.min(1, (def.speed * t / 1000) / dist)
       obj.x = def.startX + dx * progress
       obj.y = def.startY + dy * progress
     })
@@ -482,8 +592,9 @@ export class ScenarioScene extends Phaser.Scene {
   private evaluate(elapsed: number) {
     const ev = this.scenario!.evaluation
     const maneuver = this.scenario!.maneuver
+    const roadType: RoadType = this.scenario!.roadType ?? 'cross'
 
-    // 1) Collision with any active NPC
+    // 1) Collision
     for (const { def, obj } of this.npcs) {
       if (!obj.visible) continue
       const r = def.type === 'pedestrian' ? NPC_PED_R : NPC_CAR_R
@@ -492,7 +603,7 @@ export class ScenarioScene extends Phaser.Scene {
       }
     }
 
-    // 2) Full-stop detection (before the line)
+    // 2) Full-stop tracking (before the line)
     if (!this.crossedLine && this.speed < STOP_EPS && this.car.y > STOP_LINE_Y) {
       this.hasStopped = true
     }
@@ -500,49 +611,48 @@ export class ScenarioScene extends Phaser.Scene {
     // 3) Crossing the stop line
     if (!this.crossedLine && this.car.y <= STOP_LINE_Y) {
       this.crossedLine = true
-      if (ev.mustStop && !this.hasStopped) {
-        return this.resolve('no_full_stop')
-      }
-      if (ev.waitForGo && !canCrossLine(this.currentLight, maneuver)) {
-        return this.resolve('ran_red')
-      }
-      if (!canCrossLine(this.currentLight, maneuver)) {
-        // signal forbids this maneuver (e.g. straight on a right-arrow-only signal)
-        return this.resolve('ran_red')
-      }
+      if (ev.mustStop && !this.hasStopped) return this.resolve('no_full_stop')
+      if (ev.waitForGo && !canCrossLine(this.currentLight, maneuver)) return this.resolve('ran_red')
+      if (!canCrossLine(this.currentLight, maneuver)) return this.resolve('ran_red')
     }
 
-    // 4) Reaching a goal zone = maneuver complete
-    const done = this.reachedGoal()
+    // 4) Goal reached
+    const done = this.reachedGoal(roadType)
     if (done) {
-      if (ev.allowedManeuvers && !ev.allowedManeuvers.includes(done)) {
-        return this.resolve('wrong_way')
-      }
+      if (ev.allowedManeuvers && !ev.allowedManeuvers.includes(done)) return this.resolve('wrong_way')
       return this.resolve('success')
     }
 
     // 5) Off-road
-    if (elapsed > 250 && this.isOffRoad()) {
-      return this.resolve('off_road')
-    }
+    if (elapsed > 250 && this.isOffRoad(roadType)) return this.resolve('off_road')
 
-    // 6) Timeout safety net
-    if (elapsed > 18000) {
-      return this.resolve('timeout')
-    }
+    // 6) Timeout
+    if (elapsed > 28000) return this.resolve('timeout')
   }
 
-  private reachedGoal(): Maneuver | null {
-    if (this.car.y < GOAL_STRAIGHT_Y && Math.abs(this.car.x - CX) < 44) return 'straight'
+  private reachedGoal(roadType: RoadType): Maneuver | null {
+    if (roadType !== 't-junction') {
+      if (this.car.y < GOAL_STRAIGHT_Y && Math.abs(this.car.x - CX) < 44) return 'straight'
+    }
     if (this.car.x > GOAL_RIGHT_X && Math.abs(this.car.y - CY) < 44) return 'right'
-    if (this.car.x < GOAL_LEFT_X && Math.abs(this.car.y - CY) < 44) return 'left'
+    if (this.car.x < GOAL_LEFT_X  && Math.abs(this.car.y - CY) < 44) return 'left'
     return null
   }
 
-  private isOffRoad(): boolean {
-    const onVertical = Math.abs(this.car.x - CX) <= ROAD_W / 2 + 6
-    const onHorizontal = Math.abs(this.car.y - CY) <= ROAD_W / 2 + 6
-    return !onVertical && !onHorizontal
+  private isOffRoad(roadType: RoadType): boolean {
+    const onNS = Math.abs(this.car.x - CX) <= ROAD_W / 2 + 6
+    const onEW = Math.abs(this.car.y - CY) <= ROAD_W / 2 + 6
+
+    if (roadType === 'straight') {
+      return !onNS
+    }
+    if (roadType === 't-junction') {
+      // No north arm: north of intersection on the NS band is off-road
+      if (this.car.y < CY - INT / 2 - 4 && onNS) return true
+      return !onNS && !onEW
+    }
+    // cross
+    return !onNS && !onEW
   }
 
   private resolve(reason: OutcomeReason) {
@@ -553,7 +663,7 @@ export class ScenarioScene extends Phaser.Scene {
     const timeMs = this.time.now - this.driveStart
 
     if (reason === 'collision') {
-      const overlay = this.add.rectangle(CX, CY, GAME_WIDTH, GAME_HEIGHT, 0xff0000, 0.35).setDepth(20)
+      const overlay = this.add.rectangle(this.car.x, this.car.y, GAME_WIDTH * 2, GAME_HEIGHT * 2, 0xff0000, 0.35).setDepth(20)
       this.cameras.main.shake(350, 0.018)
       this.time.delayedCall(550, () => {
         overlay.destroy()
@@ -563,7 +673,7 @@ export class ScenarioScene extends Phaser.Scene {
     }
 
     if (isCorrect) {
-      const overlay = this.add.rectangle(CX, CY, GAME_WIDTH, GAME_HEIGHT, 0x00cc44, 0.25).setDepth(20)
+      const overlay = this.add.rectangle(this.car.x, this.car.y, GAME_WIDTH * 2, GAME_HEIGHT * 2, 0x00cc44, 0.25).setDepth(20)
       this.tweens.add({
         targets: overlay,
         alpha: 0,
@@ -576,7 +686,6 @@ export class ScenarioScene extends Phaser.Scene {
       return
     }
 
-    // other violations: brief shake
     this.cameras.main.shake(220, 0.01)
     this.time.delayedCall(420, () => {
       bridge.emit(PHASER_EVENTS.OUTCOME, { isCorrect, reason, timeMs })
