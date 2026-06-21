@@ -1,0 +1,67 @@
+{
+  "game": {
+    "title": "沖繩交通挑戰",
+    "subtitle": "日本道路規則模擬遊戲"
+  },
+  "menu": {
+    "study": "學習模式",
+    "study_desc": "無計時，先了解規則",
+    "normal": "一般模式",
+    "normal_desc": "10秒決策，3條生命",
+    "challenge": "挑戰模式",
+    "challenge_desc": "完成一般模式後解鎖",
+    "start": "開始遊戲",
+    "how_to_play": "玩法說明"
+  },
+  "hud": {
+    "score": "得分",
+    "lives": "生命",
+    "timer": "秒",
+    "scenario": "情境"
+  },
+  "decision": {
+    "prompt": "呢個情況你應該點做？",
+    "timeout": "時間到！"
+  },
+  "feedback": {
+    "correct": "正確！",
+    "incorrect": "答錯了",
+    "law": "相關法規",
+    "common_mistake": "常見誤解",
+    "next": "下一題",
+    "explanation": "講解"
+  },
+  "results": {
+    "title": "遊戲結束",
+    "score": "最終得分",
+    "accuracy": "正確率",
+    "streak_best": "最高連擊",
+    "stars_1": "繼續努力！",
+    "stars_2": "不錯！",
+    "stars_3": "出色！",
+    "play_again": "再玩一次",
+    "back_menu": "返回主選單",
+    "review": "重溫錯題"
+  },
+  "lights": {
+    "standard_red": "紅燈",
+    "standard_yellow": "黃燈",
+    "standard_green": "青燈（綠燈）",
+    "arrow_left": "左轉箭頭",
+    "arrow_straight": "直行箭頭",
+    "arrow_right": "右轉箭頭",
+    "flash_red": "紅色閃爍",
+    "flash_yellow": "黃色閃爍",
+    "pedestrian_walk": "行人通行",
+    "pedestrian_flash": "行人閃爍",
+    "pedestrian_stop": "行人停止"
+  },
+  "howto": {
+    "title": "玩法說明",
+    "line1": "遊戲模擬日本沖繩實際駕車情況",
+    "line2": "遇到交通燈或特殊路況時，選擇正確嘅行動",
+    "line3": "每題附有詳細法規講解",
+    "line4": "注意：日本係靠左行駛！",
+    "close": "明白了"
+  }
+}
