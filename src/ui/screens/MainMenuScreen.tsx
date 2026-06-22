@@ -1,10 +1,24 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useGameStore } from '../../store/gameStore'
-import { getShuffledScenarioIds, ALL_SCENARIOS } from '../../data/scenarios'
+import { ALL_SCENARIOS } from '../../data/scenarios'
 import { LangToggle } from '../components/LangToggle'
+import type { GameMode } from '../../data/types'
 
-type Mode = 'study' | 'normal' | 'challenge'
+// Return scenario IDs for a given mode.
+function scenarioIdsFor(mode: GameMode): string[] {
+  const filtered = ALL_SCENARIOS.filter((s) => !s.modes || s.modes.includes(mode))
+  if (mode === 'study') {
+    // Study: ordered easiest first, never shuffled
+    return [...filtered].sort((a, b) => a.difficulty - b.difficulty).map((s) => s.id)
+  }
+  if (mode === 'normal') {
+    // Normal: shuffled
+    return [...filtered].sort(() => Math.random() - 0.5).map((s) => s.id)
+  }
+  // Challenge: all scenarios (including challenge-only) ordered by difficulty
+  return [...filtered].sort((a, b) => a.difficulty - b.difficulty).map((s) => s.id)
+}
 
 interface Props {
   onStart: () => void
@@ -16,12 +30,15 @@ export function MainMenuScreen({ onStart }: Props) {
   const [showHowTo, setShowHowTo] = useState(false)
   const lang = useGameStore((s) => s.lang)
 
-  const handleStart = (mode: Mode) => {
-    const ids = mode === 'challenge'
-      ? [...ALL_SCENARIOS].sort((a, b) => a.difficulty - b.difficulty).map((s) => s.id)
-      : getShuffledScenarioIds(mode === 'study' ? ALL_SCENARIOS.length : 10)
-    startSession(mode, ids)
+  const handleStart = (mode: GameMode) => {
+    startSession(mode, scenarioIdsFor(mode))
     onStart()
+  }
+
+  const counts = {
+    study:     ALL_SCENARIOS.filter((s) => !s.modes || s.modes.includes('study')).length,
+    normal:    ALL_SCENARIOS.filter((s) => !s.modes || s.modes.includes('normal')).length,
+    challenge: ALL_SCENARIOS.filter((s) => !s.modes || s.modes.includes('challenge')).length,
   }
 
   const title = lang === 'zh-TW' ? '沖繩交通挑戰' : '沖縄交通チャレンジ'
@@ -64,6 +81,7 @@ export function MainMenuScreen({ onStart }: Props) {
           icon="📖"
           label={t('menu.study')}
           desc={t('menu.study_desc')}
+          count={counts.study}
           color="#1A4E8C"
           onClick={() => handleStart('study')}
         />
@@ -71,6 +89,7 @@ export function MainMenuScreen({ onStart }: Props) {
           icon="🚦"
           label={t('menu.normal')}
           desc={t('menu.normal_desc')}
+          count={counts.normal}
           color="#FF6B35"
           onClick={() => handleStart('normal')}
         />
@@ -78,6 +97,7 @@ export function MainMenuScreen({ onStart }: Props) {
           icon="🏆"
           label={t('menu.challenge')}
           desc={t('menu.challenge_desc')}
+          count={counts.challenge}
           color="#9C27B0"
           onClick={() => handleStart('challenge')}
         />
@@ -118,12 +138,14 @@ function ModeButton({
   icon,
   label,
   desc,
+  count,
   color,
   onClick,
 }: {
   icon: string
   label: string
   desc: string
+  count: number
   color: string
   onClick: () => void
 }) {
@@ -134,10 +156,16 @@ function ModeButton({
       style={{ backgroundColor: `${color}22`, border: `1px solid ${color}66` }}
     >
       <span className="text-2xl">{icon}</span>
-      <div>
+      <div className="flex-1">
         <div className="font-bold text-white">{label}</div>
         <div className="text-xs text-gray-400">{desc}</div>
       </div>
+      <span
+        className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+        style={{ backgroundColor: `${color}33`, color }}
+      >
+        {count}關
+      </span>
     </button>
   )
 }

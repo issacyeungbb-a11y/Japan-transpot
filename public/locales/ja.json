@@ -5,11 +5,11 @@
   },
   "menu": {
     "study": "学習モード",
-    "study_desc": "ライフ無限、気軽に練習",
+    "study_desc": "ライフ無限・基礎ルールを段階的に学ぶ",
     "normal": "ノーマルモード",
-    "normal_desc": "リアルタイム運転、ライフ3回",
+    "normal_desc": "ライフ3回・難易度ミックス・歩行者＆曲がり角も",
     "challenge": "チャレンジモード",
-    "challenge_desc": "ライフ1回、難易度順",
+    "challenge_desc": "ライフ1回・繁忙交差点＋高速道路に挑戦",
     "start": "ゲームスタート",
     "how_to_play": "遊び方"
   },

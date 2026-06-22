@@ -5,11 +5,11 @@
   },
   "menu": {
     "study": "學習模式",
-    "study_desc": "無限生命，輕鬆練習",
+    "study_desc": "無限生命・基礎規則・由簡至難",
     "normal": "一般模式",
-    "normal_desc": "即時駕駛，3條生命",
+    "normal_desc": "3條生命・混合難度・含行人及轉向",
     "challenge": "挑戰模式",
-    "challenge_desc": "1條生命，由淺入深",
+    "challenge_desc": "1條生命・繁忙路口・高速公路",
     "start": "開始遊戲",
     "how_to_play": "玩法說明"
   },

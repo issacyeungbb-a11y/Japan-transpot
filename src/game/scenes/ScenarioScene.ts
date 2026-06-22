@@ -13,11 +13,13 @@ import type {
 import { GAME_WIDTH, GAME_HEIGHT } from '../GameConfig'
 
 // ---- Colours ----
-const ROAD_COLOR = 0x4a4a4a
-const ROAD_LINE = 0xffffff
-const SIDEWALK_COLOR = 0x8a7c6a
-const GRASS_COLOR = 0x3d7a30
+const ROAD_COLOR       = 0x4a4a4a
+const ROAD_LINE        = 0xffffff
+const SIDEWALK_COLOR   = 0x8a7c6a
+const GRASS_COLOR      = 0x3d7a30
 const INTERSECTION_COLOR = 0x555555
+const HIGHWAY_SHOULDER = 0x888888  // concrete barrier strip
+const HIGHWAY_ASPHALT  = 0x383838  // darker expressway surface
 
 // ---- World geometry ----
 // The world is taller than the camera viewport; the camera follows the car.
@@ -29,7 +31,11 @@ const ROAD_W = 80
 const INT = 80  // intersection square half-side * 2
 
 // Japan left-hand traffic: player (northbound) keeps LEFT lane.
-const NB_LANE_X = CX - 20 // 380
+const NB_LANE_X = CX - 20 // 380  (city roads)
+
+// Highway has two lanes per direction; player in left-half of left carriageway.
+const HIGHWAY_W      = 160  // total road width
+const HIGHWAY_NB_X   = CX - 40 // 360 — player's lane centre on highway
 
 // Stop line is south of the pedestrian crossing, south of the intersection.
 const STOP_LINE_Y = CY + INT / 2 + 50 // 610
@@ -111,7 +117,8 @@ export class ScenarioScene extends Phaser.Scene {
     this.car = this.createCar()
     this.resetCarToSpawn()
 
-    this.cameras.main.startFollow(this.car, true, 1, 1, 0, 80)
+    // offsetY = -80 → camera shows 305 px of road AHEAD (north) and 145 px behind.
+    this.cameras.main.startFollow(this.car, true, 1, 1, 0, -80)
 
     if (this.input.keyboard) {
       this.cursors = this.input.keyboard.createCursorKeys()
@@ -144,13 +151,55 @@ export class ScenarioScene extends Phaser.Scene {
     g.fillStyle(GRASS_COLOR)
     g.fillRect(0, 0, GAME_WIDTH, WORLD_HEIGHT)
 
-    if (roadType === 'straight') {
+    if (roadType === 'highway') {
+      this.drawHighwayRoad(g)
+    } else if (roadType === 'straight') {
       this.drawStraightRoad(g)
     } else {
       this.drawCrossRoad(g, roadType)
     }
 
     this.drawGoalMarker(maneuver)
+  }
+
+  private drawHighwayRoad(g: Phaser.GameObjects.Graphics) {
+    const hw = HIGHWAY_W / 2  // 80
+
+    // Concrete shoulder / barrier strips (wider than road)
+    g.fillStyle(HIGHWAY_SHOULDER)
+    g.fillRect(CX - hw - 14, 0, HIGHWAY_W + 28, WORLD_HEIGHT)
+
+    // Expressway surface (two carriageways, 80 px each)
+    g.fillStyle(HIGHWAY_ASPHALT)
+    g.fillRect(CX - hw, 0, HIGHWAY_W, WORLD_HEIGHT)
+
+    // Yellow centre divider line
+    g.fillStyle(0xffcc00)
+    g.fillRect(CX - 2, 0, 4, WORLD_HEIGHT)
+
+    // White edge lines
+    g.fillStyle(ROAD_LINE)
+    g.fillRect(CX - hw, 0, 4, WORLD_HEIGHT)  // left edge
+    g.fillRect(CX + hw - 4, 0, 4, WORLD_HEIGHT)  // right edge
+
+    // Dashed lane dividers inside each carriageway
+    for (let y = 20; y < WORLD_HEIGHT; y += 40) {
+      g.fillRect(CX - hw / 2 - 2, y, 4, 22)  // NB inner dash
+      g.fillRect(CX + hw / 2 - 2, y, 4, 22)  // SB inner dash
+    }
+
+    // Guard-rail dots along the shoulder edges
+    g.fillStyle(0xaaaaaa)
+    for (let y = 10; y < WORLD_HEIGHT; y += 50) {
+      g.fillRect(CX - hw - 11, y, 6, 6)
+      g.fillRect(CX + hw + 5,  y, 6, 6)
+    }
+
+    // Distance markers every ~200 px
+    g.fillStyle(0xffffff, 0.4)
+    for (let y = 100; y < WORLD_HEIGHT; y += 200) {
+      g.fillRect(CX - hw - 14, y, HIGHWAY_W + 28, 2)
+    }
   }
 
   private drawStraightRoad(g: Phaser.GameObjects.Graphics) {
@@ -303,10 +352,11 @@ export class ScenarioScene extends Phaser.Scene {
     return c
   }
 
-  private resetCarToSpawn() {
+  private resetCarToSpawn(roadType: RoadType = 'cross') {
     this.speed = 0
     this.heading = 0
-    this.car.setPosition(NB_LANE_X, SPAWN_Y)
+    const spawnX = roadType === 'highway' ? HIGHWAY_NB_X : NB_LANE_X
+    this.car.setPosition(spawnX, SPAWN_Y)
     this.car.setRotation(0)
   }
 
@@ -492,7 +542,7 @@ export class ScenarioScene extends Phaser.Scene {
 
     const roadType: RoadType = scenario.roadType ?? 'cross'
     this.buildRoad(roadType, scenario.maneuver)
-    this.resetCarToSpawn()
+    this.resetCarToSpawn(roadType)
 
     this.clearLight()
     this.currentLight = scenario.light
@@ -631,6 +681,11 @@ export class ScenarioScene extends Phaser.Scene {
   }
 
   private reachedGoal(roadType: RoadType): Maneuver | null {
+    if (roadType === 'highway') {
+      // Wide tolerance matching the highway width
+      if (this.car.y < GOAL_STRAIGHT_Y && Math.abs(this.car.x - CX) < HIGHWAY_W / 2 + 6) return 'straight'
+      return null
+    }
     if (roadType !== 't-junction') {
       if (this.car.y < GOAL_STRAIGHT_Y && Math.abs(this.car.x - CX) < 44) return 'straight'
     }
@@ -640,6 +695,10 @@ export class ScenarioScene extends Phaser.Scene {
   }
 
   private isOffRoad(roadType: RoadType): boolean {
+    if (roadType === 'highway') {
+      return Math.abs(this.car.x - CX) > HIGHWAY_W / 2 + 6
+    }
+
     const onNS = Math.abs(this.car.x - CX) <= ROAD_W / 2 + 6
     const onEW = Math.abs(this.car.y - CY) <= ROAD_W / 2 + 6
 
@@ -647,7 +706,6 @@ export class ScenarioScene extends Phaser.Scene {
       return !onNS
     }
     if (roadType === 't-junction') {
-      // No north arm: north of intersection on the NS band is off-road
       if (this.car.y < CY - INT / 2 - 4 && onNS) return true
       return !onNS && !onEW
     }

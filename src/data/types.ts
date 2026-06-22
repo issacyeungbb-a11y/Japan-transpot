@@ -79,7 +79,8 @@ export interface ScenarioEvaluation {
   allowedManeuvers?: Maneuver[]
 }
 
-export type RoadType = 'cross' | 't-junction' | 'straight'
+export type RoadType = 'cross' | 't-junction' | 'straight' | 'highway'
+export type GameMode = 'study' | 'normal' | 'challenge'
 
 export interface Scenario {
   id: string
@@ -91,6 +92,8 @@ export interface Scenario {
   maneuver: Maneuver
   // Road layout; defaults to 'cross' when omitted.
   roadType?: RoadType
+  // Which game modes include this scenario; omit to include in all modes.
+  modes?: GameMode[]
   light: TrafficLightState | null
   lightChanges?: LightChange[]
   npcs?: ScenarioNPC[]
