@@ -15,6 +15,7 @@ type GamePhase = 'loading' | 'ready' | 'driving' | 'feedback'
 
 interface Props {
   onSessionEnd: () => void
+  onBack: () => void
 }
 
 const MANEUVER_ICON: Record<Maneuver, string> = {
@@ -23,7 +24,7 @@ const MANEUVER_ICON: Record<Maneuver, string> = {
   right: '➡️',
 }
 
-export function GameScreen({ onSessionEnd }: Props) {
+export function GameScreen({ onSessionEnd, onBack }: Props) {
   const { t } = useTranslation()
   const lang = useGameStore((s) => s.lang)
   const session = useGameStore((s) => s.session)
@@ -138,7 +139,7 @@ export function GameScreen({ onSessionEnd }: Props) {
 
   return (
     <div className="flex flex-col h-full bg-[#0d1b2a]">
-      <HUD />
+      <HUD onBack={onBack} />
 
       <div className="flex-1 relative overflow-hidden">
         <PhaserGame className="w-full h-full" />

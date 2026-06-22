@@ -126,7 +126,7 @@ export const drivingScenarios: Scenario[] = [
         type: 'pedestrian',
         startX: CX - ROAD_W / 2 - 10, startY: PED_Y,
         endX:   CX + ROAD_W / 2 + 10, endY:   PED_Y,
-        speed: 52, startAtMs: 500, color: 0xffd54f,
+        speed: 52, startAtMs: 3000, color: 0xffd54f,
       },
     ],
     evaluation: {},
@@ -185,9 +185,9 @@ export const drivingScenarios: Scenario[] = [
       {
         id: 'ped',
         type: 'pedestrian',
-        startX: CX - INT / 2 - 10, startY: CY - 30,
-        endX:   CX - INT / 2 - 10, endY:   CY + 30,
-        speed: 42, startAtMs: 400, color: 0xffd54f,
+        startX: CX - ROAD_W / 2 - 10, startY: PED_Y,
+        endX:   CX + ROAD_W / 2 + 10, endY:   PED_Y,
+        speed: 42, startAtMs: 3000, color: 0xffd54f,
       },
     ],
     evaluation: { allowedManeuvers: ['left'] },
@@ -330,7 +330,7 @@ export const drivingScenarios: Scenario[] = [
         type: 'pedestrian',
         startX: CX - ROAD_W / 2 - 8, startY: PED_Y,
         endX:   CX + ROAD_W / 2 + 8, endY:   PED_Y,
-        speed: 40, startAtMs: 800, color: 0xffd54f,
+        speed: 40, startAtMs: 3000, color: 0xffd54f,
       },
       // Oncoming vehicle also in the scene (adds cognitive load)
       {

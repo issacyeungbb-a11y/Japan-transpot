@@ -40,6 +40,10 @@ export function App() {
     setScreen('menu')
   }
 
+  const handleBackToList = () => {
+    setScreen('scenario-list')
+  }
+
   return (
     <div className="w-full h-full">
       {screen === 'menu' && (
@@ -52,7 +56,7 @@ export function App() {
           onBack={() => setScreen('menu')}
         />
       )}
-      {screen === 'game' && <GameScreen onSessionEnd={handleSessionEnd} />}
+      {screen === 'game' && <GameScreen onSessionEnd={handleSessionEnd} onBack={handleBackToList} />}
       {screen === 'results' && (
         <ResultsScreen onRestart={handleRestart} onMenu={handleMenu} />
       )}

@@ -2,7 +2,11 @@ import { useGameStore } from '../../store/gameStore'
 import { ALL_SCENARIOS } from '../../data/scenarios'
 import { useTranslation } from 'react-i18next'
 
-export function HUD() {
+interface HUDProps {
+  onBack?: () => void
+}
+
+export function HUD({ onBack }: HUDProps) {
   const { t } = useTranslation()
   const session = useGameStore((s) => s.session)
   if (!session) return null
@@ -16,8 +20,17 @@ export function HUD() {
 
   return (
     <div className="flex items-center justify-between px-4 py-2 bg-[#0d1b2a]/90 border-b border-[#1A4E8C]/60 text-white text-sm font-medium select-none">
-      {/* Lives */}
+      {/* Back button + Lives */}
       <div className="flex items-center gap-2 min-w-[80px]">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="text-gray-400 hover:text-white text-xs mr-1 leading-none"
+            aria-label="返回目錄"
+          >
+            ←
+          </button>
+        )}
         {lives !== null ? (
           <div className="flex gap-1">
             {Array.from({ length: 3 }).map((_, i) => (
