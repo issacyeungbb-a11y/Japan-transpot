@@ -540,7 +540,8 @@ export class ScenarioScene extends Phaser.Scene {
     const roadType: RoadType = scenario.roadType ?? 'cross'
     this.buildRoad(roadType, scenario.maneuver)
     this.resetCarToSpawn(roadType)
-    // Snap camera immediately so it doesn't lag behind on the first frame
+    // Reset look-ahead and snap camera so it doesn't lag on the first frame
+    this.cameras.main.followOffset.y = -120
     const spawnX = roadType === 'highway' ? HIGHWAY_NB_X : NB_LANE_X
     this.cameras.main.setScroll(spawnX - GAME_WIDTH / 2, SPAWN_Y - 120 - GAME_HEIGHT / 2)
 
@@ -587,10 +588,23 @@ export class ScenarioScene extends Phaser.Scene {
     const elapsed = this.time.now - this.driveStart
 
     this.updateCar(dt)
+    this.updateCamera(dt)
     this.updateNPCs(elapsed)
 
     if (this.resolved) return
     this.evaluate(elapsed)
+  }
+
+  // Look further ahead the faster the car goes, so the view sweeps forward
+  // to reveal the intersection / traffic light / goal as soon as driving starts.
+  private updateCamera(dt: number) {
+    const BASE_AHEAD = 120
+    const EXTRA_AHEAD = 150
+    const target = BASE_AHEAD + (this.speed / MAX_SPEED) * EXTRA_AHEAD
+    const cam = this.cameras.main
+    // Smoothly ease the offset toward the target (negative Y = look north/ahead)
+    const eased = Phaser.Math.Linear(-cam.followOffset.y, target, Math.min(1, dt * 4))
+    cam.followOffset.y = -eased
   }
 
   private readInput() {
