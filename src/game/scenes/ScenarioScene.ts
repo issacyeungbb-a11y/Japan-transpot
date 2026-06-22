@@ -43,9 +43,10 @@ const STOP_LINE_Y = CY + INT / 2 + 50 // 610
 // Player spawns near the bottom of the world.
 const SPAWN_Y = WORLD_HEIGHT - 60 // 940
 
-// Traffic light pole position (NE corner of intersection).
-const LIGHT_X = CX + INT / 2 + 18 // 458
-const LIGHT_Y = CY - INT / 2 - 6  // 474
+// Traffic light pole: right side of player's approach lane, just north of stop line.
+// Placed at y=580 so it is visible from spawn (camera shows y≥580 within 55px of travel).
+const LIGHT_X = CX + ROAD_W / 2 + 12 // 452
+const LIGHT_Y = STOP_LINE_Y - 30      // 580
 
 // Goal zones – reaching one of these resolves the maneuver.
 const GOAL_STRAIGHT_Y = CY - 220  // 300
@@ -84,7 +85,6 @@ export class ScenarioScene extends Phaser.Scene {
 
   private scenario: Scenario | null = null
   private phase: Phase = 'idle'
-  private currentRoadType: RoadType = 'cross'
 
   // car kinematic state
   private speed = 0
@@ -117,8 +117,8 @@ export class ScenarioScene extends Phaser.Scene {
     this.car = this.createCar()
     this.resetCarToSpawn()
 
-    // offsetY = -80 → camera shows 305 px of road AHEAD (north) and 145 px behind.
-    this.cameras.main.startFollow(this.car, true, 1, 1, 0, -80)
+    // offsetY = -120 → camera shows 345 px of road AHEAD (north) and 105 px behind.
+    this.cameras.main.startFollow(this.car, true, 1, 1, 0, -120)
 
     if (this.input.keyboard) {
       this.cursors = this.input.keyboard.createCursorKeys()
@@ -143,7 +143,6 @@ export class ScenarioScene extends Phaser.Scene {
   // ================= Road =================
 
   private buildRoad(roadType: RoadType, maneuver: Maneuver) {
-    this.currentRoadType = roadType
     const g = this.roadGraphics
     g.clear()
 
@@ -378,9 +377,7 @@ export class ScenarioScene extends Phaser.Scene {
     const lamp = this.add.graphics()
     this.renderLamp(g, lamp, state)
 
-    const lx = this.currentRoadType === 'straight' ? CX + ROAD_W / 2 + 12 : LIGHT_X
-    const ly = this.currentRoadType === 'straight' ? STOP_LINE_Y - 30 : LIGHT_Y
-    const c = this.add.container(lx, ly, [g, lamp])
+    const c = this.add.container(LIGHT_X, LIGHT_Y, [g, lamp])
     c.setDepth(6)
     this.lightContainer = c
     this.lightLamp = lamp
@@ -543,6 +540,9 @@ export class ScenarioScene extends Phaser.Scene {
     const roadType: RoadType = scenario.roadType ?? 'cross'
     this.buildRoad(roadType, scenario.maneuver)
     this.resetCarToSpawn(roadType)
+    // Snap camera immediately so it doesn't lag behind on the first frame
+    const spawnX = roadType === 'highway' ? HIGHWAY_NB_X : NB_LANE_X
+    this.cameras.main.setScroll(spawnX - GAME_WIDTH / 2, SPAWN_Y - 120 - GAME_HEIGHT / 2)
 
     this.clearLight()
     this.currentLight = scenario.light
