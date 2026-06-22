@@ -133,13 +133,14 @@ export class ScenarioScene extends Phaser.Scene {
     bridge.on(REACT_EVENTS.START_SCENARIO, this.onStartScenario)
     bridge.on(REACT_EVENTS.NEXT_SCENARIO, this.onNextScenario)
 
-    bridge.emit(PHASER_EVENTS.SCENE_READY)
-  }
+    // Use Phaser's own lifecycle event so cleanup is guaranteed when game.destroy() is called.
+    // Defining a destroy() method on the class is NOT called automatically by Phaser.
+    this.events.once('destroy', () => {
+      bridge.off(REACT_EVENTS.START_SCENARIO, this.onStartScenario)
+      bridge.off(REACT_EVENTS.NEXT_SCENARIO, this.onNextScenario)
+    })
 
-  destroy() {
-    bridge.off(REACT_EVENTS.START_SCENARIO, this.onStartScenario)
-    bridge.off(REACT_EVENTS.NEXT_SCENARIO, this.onNextScenario)
-    this.flashTimer?.destroy()
+    bridge.emit(PHASER_EVENTS.SCENE_READY)
   }
 
   // ================= Road =================

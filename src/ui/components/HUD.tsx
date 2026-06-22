@@ -25,10 +25,10 @@ export function HUD({ onBack }: HUDProps) {
         {onBack && (
           <button
             onClick={onBack}
-            className="text-gray-400 hover:text-white text-xs mr-1 leading-none"
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-gray-300 hover:text-white hover:bg-white/10 transition-colors border border-white/20 active:scale-95"
             aria-label="返回目錄"
           >
-            ←
+            ← 目錄
           </button>
         )}
         {lives !== null ? (
