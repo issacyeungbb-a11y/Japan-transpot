@@ -117,8 +117,10 @@ export class ScenarioScene extends Phaser.Scene {
     this.car = this.createCar()
     this.resetCarToSpawn()
 
-    // offsetY = -120 → camera shows 345 px of road AHEAD (north) and 105 px behind.
-    this.cameras.main.startFollow(this.car, true, 1, 1, 0, -120)
+    // Phaser formula: scrollY = car.y - followOffset.y - height/2
+    // So positive followOffset.y shifts car DOWN the canvas (shows more road AHEAD).
+    // +150 → car at screen y 375/450 (83%), 375 px of road ahead visible.
+    this.cameras.main.startFollow(this.car, true, 1, 1, 0, 150)
 
     if (this.input.keyboard) {
       this.cursors = this.input.keyboard.createCursorKeys()
@@ -540,10 +542,12 @@ export class ScenarioScene extends Phaser.Scene {
     const roadType: RoadType = scenario.roadType ?? 'cross'
     this.buildRoad(roadType, scenario.maneuver)
     this.resetCarToSpawn(roadType)
-    // Reset look-ahead and snap camera so it doesn't lag on the first frame
-    this.cameras.main.followOffset.y = -120
+    // Reset look-ahead and snap camera so it doesn't lag on the first frame.
+    // With followOffset.y=150, at spawn scrollY = 940-150-225=565 → clamped to 550
+    // (world bottom). Camera shows world y=[550,1000], light at y=580 is visible.
+    this.cameras.main.followOffset.y = 150
     const spawnX = roadType === 'highway' ? HIGHWAY_NB_X : NB_LANE_X
-    this.cameras.main.setScroll(spawnX - GAME_WIDTH / 2, SPAWN_Y - 120 - GAME_HEIGHT / 2)
+    this.cameras.main.setScroll(spawnX - GAME_WIDTH / 2, WORLD_HEIGHT - GAME_HEIGHT)
 
     this.clearLight()
     this.currentLight = scenario.light
@@ -595,16 +599,13 @@ export class ScenarioScene extends Phaser.Scene {
     this.evaluate(elapsed)
   }
 
-  // Look further ahead the faster the car goes, so the view sweeps forward
-  // to reveal the intersection / traffic light / goal as soon as driving starts.
+  // Show more road ahead the faster the car goes (positive followOffset.y = more ahead).
   private updateCamera(dt: number) {
-    const BASE_AHEAD = 120
-    const EXTRA_AHEAD = 150
-    const target = BASE_AHEAD + (this.speed / MAX_SPEED) * EXTRA_AHEAD
+    const BASE_AHEAD = 150
+    const EXTRA_AHEAD = 100
+    const targetOffset = BASE_AHEAD + (this.speed / MAX_SPEED) * EXTRA_AHEAD
     const cam = this.cameras.main
-    // Smoothly ease the offset toward the target (negative Y = look north/ahead)
-    const eased = Phaser.Math.Linear(-cam.followOffset.y, target, Math.min(1, dt * 4))
-    cam.followOffset.y = -eased
+    cam.followOffset.y = Phaser.Math.Linear(cam.followOffset.y, targetOffset, Math.min(1, dt * 4))
   }
 
   private readInput() {
