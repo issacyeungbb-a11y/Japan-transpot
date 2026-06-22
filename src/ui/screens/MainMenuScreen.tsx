@@ -5,35 +5,14 @@ import { ALL_SCENARIOS } from '../../data/scenarios'
 import { LangToggle } from '../components/LangToggle'
 import type { GameMode } from '../../data/types'
 
-// Return scenario IDs for a given mode.
-function scenarioIdsFor(mode: GameMode): string[] {
-  const filtered = ALL_SCENARIOS.filter((s) => !s.modes || s.modes.includes(mode))
-  if (mode === 'study') {
-    // Study: ordered easiest first, never shuffled
-    return [...filtered].sort((a, b) => a.difficulty - b.difficulty).map((s) => s.id)
-  }
-  if (mode === 'normal') {
-    // Normal: shuffled
-    return [...filtered].sort(() => Math.random() - 0.5).map((s) => s.id)
-  }
-  // Challenge: all scenarios (including challenge-only) ordered by difficulty
-  return [...filtered].sort((a, b) => a.difficulty - b.difficulty).map((s) => s.id)
-}
-
 interface Props {
-  onStart: () => void
+  onModeSelect: (mode: GameMode) => void
 }
 
-export function MainMenuScreen({ onStart }: Props) {
+export function MainMenuScreen({ onModeSelect }: Props) {
   const { t } = useTranslation()
-  const { startSession } = useGameStore()
   const [showHowTo, setShowHowTo] = useState(false)
   const lang = useGameStore((s) => s.lang)
-
-  const handleStart = (mode: GameMode) => {
-    startSession(mode, scenarioIdsFor(mode))
-    onStart()
-  }
 
   const counts = {
     study:     ALL_SCENARIOS.filter((s) => !s.modes || s.modes.includes('study')).length,
@@ -50,7 +29,6 @@ export function MainMenuScreen({ onStart }: Props) {
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-20 -left-20 w-96 h-96 rounded-full bg-[#1A4E8C]/20 blur-3xl" />
         <div className="absolute -bottom-20 -right-20 w-96 h-96 rounded-full bg-[#FF6B35]/10 blur-3xl" />
-        {/* Road lines decoration */}
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-full opacity-10">
           {Array.from({ length: 20 }).map((_, i) => (
             <div key={i} className="w-full h-12 bg-white mb-6" />
@@ -83,7 +61,7 @@ export function MainMenuScreen({ onStart }: Props) {
           desc={t('menu.study_desc')}
           count={counts.study}
           color="#1A4E8C"
-          onClick={() => handleStart('study')}
+          onClick={() => onModeSelect('study')}
         />
         <ModeButton
           icon="🚦"
@@ -91,7 +69,7 @@ export function MainMenuScreen({ onStart }: Props) {
           desc={t('menu.normal_desc')}
           count={counts.normal}
           color="#FF6B35"
-          onClick={() => handleStart('normal')}
+          onClick={() => onModeSelect('normal')}
         />
         <ModeButton
           icon="🏆"
@@ -99,7 +77,7 @@ export function MainMenuScreen({ onStart }: Props) {
           desc={t('menu.challenge_desc')}
           count={counts.challenge}
           color="#9C27B0"
-          onClick={() => handleStart('challenge')}
+          onClick={() => onModeSelect('challenge')}
         />
 
         <button

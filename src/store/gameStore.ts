@@ -5,7 +5,7 @@ interface GameStore {
   lang: Lang
   session: GameSession | null
   setLang: (lang: Lang) => void
-  startSession: (mode: GameSession['mode'], scenarioIds: string[]) => void
+  startSession: (mode: GameSession['mode'], scenarioIds: string[], startIndex?: number) => void
   recordAnswer: (record: AnswerRecord) => void
   nextScenario: () => void
   loseLife: () => void
@@ -25,12 +25,12 @@ export const useGameStore = create<GameStore>((set) => ({
 
   setLang: (lang) => set({ lang }),
 
-  startSession: (mode, scenarioIds) =>
+  startSession: (mode, scenarioIds, startIndex = 0) =>
     set({
       session: {
         mode,
         scenarioIds,
-        currentIndex: 0,
+        currentIndex: startIndex,
         score: 0,
         lives: INITIAL_LIVES[mode],
         streak: 0,
