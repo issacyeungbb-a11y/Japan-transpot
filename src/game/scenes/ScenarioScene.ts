@@ -62,9 +62,12 @@ const GOAL_LEFT_X   = CX - 160    // 240
 // ---- Physics ----
 const CRUISE_SPEED = 90
 const MAX_SPEED = 220
-const ACCEL = 150
+// Throttle is gentle so it's hard to overshoot the limit by accident: holding
+// it adds ~21 km/h per second (was ~83, which felt twitchy). Lifting off scrubs
+// speed a touch faster than before so easing off the gas brings you back down.
+const ACCEL = 38
 const BRAKE_DECEL = 320
-const COAST_FRICTION = 20
+const COAST_FRICTION = 28
 const TURN_RATE = 2.5  // rad/s at full steering
 const STOP_EPS = 8
 
@@ -74,8 +77,8 @@ const STOP_EPS = 8
 const KMH_PER_PX = 50 / CRUISE_SPEED
 // How far over the posted limit (km/h) is tolerated, and for how long (ms),
 // before it counts as a speeding violation. A short overshoot is forgiven.
-const SPEED_TOLERANCE = 20
-const SPEED_GRACE_MS = 1100
+const SPEED_TOLERANCE = 22
+const SPEED_GRACE_MS = 1500
 
 // Wet road: brakes bite less (longer stopping distance) and grip drops.
 const RAIN_BRAKE_FACTOR = 0.55
