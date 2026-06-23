@@ -37,6 +37,12 @@ const NB_LANE_X = CX - 20 // 380  (city roads)
 const HIGHWAY_W      = 160  // total road width
 const HIGHWAY_NB_X   = CX - 40 // 360 — player's lane centre on highway
 
+// Bus-lane scenario: a wider same-direction road with a blue 「バス専用」 lane on
+// the LEFT and a normal lane on the RIGHT. The player must keep to the right.
+const BUS_ROAD_W   = 120
+const BUS_LANE_X   = CX - 30 // 370 — blue bus-only lane centre (left)
+const BUS_NORMAL_X = CX + 30 // 430 — normal lane centre (player keeps right)
+
 // Stop line is south of the pedestrian crossing, south of the intersection.
 const STOP_LINE_Y = CY + INT / 2 + 50 // 610
 
@@ -62,6 +68,23 @@ const COAST_FRICTION = 20
 const TURN_RATE = 2.5  // rad/s at full steering
 const STOP_EPS = 8
 
+// World px → km/h so the speedometer reads like a real car.
+// Chosen so the natural cruise (90 px/s) shows 50 km/h — the common Okinawa
+// local limit — and full throttle tops out around 122 km/h.
+const KMH_PER_PX = 50 / CRUISE_SPEED
+// How far over the posted limit (km/h) is tolerated, and for how long (ms),
+// before it counts as a speeding violation. A short overshoot is forgiven.
+const SPEED_TOLERANCE = 20
+const SPEED_GRACE_MS = 1100
+
+// Wet road: brakes bite less (longer stopping distance) and grip drops.
+const RAIN_BRAKE_FACTOR = 0.55
+const RAIN_TURN_FACTOR = 0.78
+
+// ETC toll gate: line the player must cross at ETC crawl speed or hit the bar.
+const GATE_Y = 770
+const ETC_MAX_KMH = 25
+
 // ---- Collision radii ----
 const CAR_R = 19
 const NPC_CAR_R = 18
@@ -82,6 +105,18 @@ export class ScenarioScene extends Phaser.Scene {
   private lightLamp: Phaser.GameObjects.Graphics | null = null
   private npcs: NpcSprite[] = []
   private flashTimer: Phaser.Time.TimerEvent | null = null
+  private stopSign: Phaser.GameObjects.Container | null = null
+  private tollGate: Phaser.GameObjects.Container | null = null
+  private tollBar: Phaser.GameObjects.Rectangle | null = null
+  private rainLayer: Phaser.GameObjects.Container | null = null
+  private busSprite: Phaser.GameObjects.Container | null = null
+  private busLabels: Phaser.GameObjects.Text[] = []
+  private busY = 0
+
+  // Fixed (camera-locked) speedometer + speed-limit sign HUD.
+  private speedReadout!: Phaser.GameObjects.Text
+  private limitSign!: Phaser.GameObjects.Container
+  private limitSignNumber!: Phaser.GameObjects.Text
 
   private scenario: Scenario | null = null
   private phase: Phase = 'idle'
@@ -96,6 +131,12 @@ export class ScenarioScene extends Phaser.Scene {
   private hasStopped = false
   private crossedLine = false
   private resolved = false
+  private speedLimit = 0      // km/h; 0 = no posted limit
+  private overspeedMs = 0     // accumulated time spent over the limit
+  private raining = false
+  private hasTollGate = false
+  private tollPassed = false
+  private hasBusLane = false
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
   private keyW?: Phaser.Input.Keyboard.Key
@@ -116,6 +157,8 @@ export class ScenarioScene extends Phaser.Scene {
 
     this.car = this.createCar()
     this.resetCarToSpawn()
+
+    this.buildSpeedHud()
 
     // Phaser formula: scrollY = car.y - followOffset.y - height/2
     // So positive followOffset.y shifts car DOWN the canvas (shows more road AHEAD).
@@ -148,6 +191,9 @@ export class ScenarioScene extends Phaser.Scene {
   private buildRoad(roadType: RoadType, maneuver: Maneuver) {
     const g = this.roadGraphics
     g.clear()
+    // Remove any bus-lane markings/sprite left over from a previous scenario;
+    // drawBusLaneRoad re-creates them when this scenario uses a bus lane.
+    this.clearBusLane()
 
     // Grass background (full world height)
     g.fillStyle(GRASS_COLOR)
@@ -156,7 +202,8 @@ export class ScenarioScene extends Phaser.Scene {
     if (roadType === 'highway') {
       this.drawHighwayRoad(g)
     } else if (roadType === 'straight') {
-      this.drawStraightRoad(g)
+      if (this.hasBusLane) this.drawBusLaneRoad(g)
+      else this.drawStraightRoad(g)
     } else {
       this.drawCrossRoad(g, roadType)
     }
@@ -222,6 +269,77 @@ export class ScenarioScene extends Phaser.Scene {
     // Stop line south of the light
     g.fillStyle(ROAD_LINE)
     g.fillRect(CX - ROAD_W / 2, STOP_LINE_Y, ROAD_W, 4)
+  }
+
+  private drawBusLaneRoad(g: Phaser.GameObjects.Graphics) {
+    const hw = BUS_ROAD_W / 2 // 60
+
+    // Sidewalks
+    g.fillStyle(SIDEWALK_COLOR)
+    g.fillRect(CX - hw - 8, 0, BUS_ROAD_W + 16, WORLD_HEIGHT)
+
+    // Asphalt
+    g.fillStyle(ROAD_COLOR)
+    g.fillRect(CX - hw, 0, BUS_ROAD_W, WORLD_HEIGHT)
+
+    // Blue 「バス専用」 lane on the LEFT (x = CX-hw .. CX)
+    g.fillStyle(0x15518a, 0.85)
+    g.fillRect(CX - hw, 0, hw, WORLD_HEIGHT)
+
+    // Lane divider (dashed white down the middle) + outer edge lines
+    g.fillStyle(ROAD_LINE)
+    for (let y = 20; y < WORLD_HEIGHT; y += 36) g.fillRect(CX - 2, y, 4, 20)
+    g.fillRect(CX - hw, 0, 3, WORLD_HEIGHT)
+    g.fillRect(CX + hw - 3, 0, 3, WORLD_HEIGHT)
+
+    // Repeated 「バス専用」 markings painted in the blue lane.
+    this.clearBusLabels()
+    for (let y = 180; y < WORLD_HEIGHT; y += 240) {
+      const label = this.add
+        .text(BUS_LANE_X, y, 'バス\n専用', {
+          fontFamily: 'sans-serif', fontSize: '18px', fontStyle: 'bold',
+          color: '#ffffff', align: 'center',
+        })
+        .setOrigin(0.5)
+        .setDepth(2)
+      this.busLabels.push(label)
+    }
+  }
+
+  private clearBusLabels() {
+    this.busLabels.forEach((l) => l.destroy())
+    this.busLabels = []
+  }
+
+  private clearBusLane() {
+    this.clearBusLabels()
+    this.busSprite?.destroy()
+    this.busSprite = null
+  }
+
+  // A long city bus that crawls up the bus-only lane.
+  private createBus(): Phaser.GameObjects.Container {
+    const g = this.add.graphics()
+    g.fillStyle(0x2e7d32)
+    g.fillRoundedRect(-17, -38, 34, 76, 6)
+    g.fillStyle(0xcfe8d0)
+    g.fillRect(-13, -30, 26, 16)  // windscreen band
+    g.fillRect(-13, -8, 26, 14)
+    g.fillRect(-13, 12, 26, 14)
+    g.fillStyle(0xffd54f)
+    g.fillRect(-13, 30, 8, 5)
+    g.fillRect(5, 30, 8, 5)
+    const c = this.add.container(BUS_LANE_X, 0, [g])
+    c.setDepth(8)
+    return c
+  }
+
+  private updateBus(dt: number) {
+    if (!this.busSprite) return
+    // Crawls north (up); wraps back to the bottom of the view.
+    this.busY -= 60 * dt
+    if (this.busY < -80) this.busY = SPAWN_Y - 40
+    this.busSprite.y = this.busY
   }
 
   private drawCrossRoad(g: Phaser.GameObjects.Graphics, roadType: RoadType) {
@@ -330,6 +448,166 @@ export class ScenarioScene extends Phaser.Scene {
     g.fillRect(x + 6, y - 4, 12, 8)
   }
 
+  // ================= Speed HUD =================
+
+  // A camera-locked speedometer (bottom-left) and a Japanese round speed-limit
+  // sign (top-right). Built once; values updated each frame.
+  private buildSpeedHud() {
+    // Speedometer: big number + km/h unit on a dark pill.
+    const pill = this.add.graphics()
+    pill.fillStyle(0x0d1b2a, 0.72)
+    pill.fillRoundedRect(10, GAME_HEIGHT - 56, 116, 44, 10)
+    pill.lineStyle(2, 0x1a4e8c, 0.8)
+    pill.strokeRoundedRect(10, GAME_HEIGHT - 56, 116, 44, 10)
+    pill.setScrollFactor(0).setDepth(30)
+
+    this.speedReadout = this.add
+      .text(96, GAME_HEIGHT - 50, '0', { fontFamily: 'monospace', fontSize: '30px', color: '#ffffff' })
+      .setOrigin(1, 0)
+      .setScrollFactor(0)
+      .setDepth(31)
+    this.add
+      .text(100, GAME_HEIGHT - 30, 'km/h', { fontFamily: 'monospace', fontSize: '12px', color: '#9fb3c8' })
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(31)
+
+    // Speed-limit sign: white disc, red ring, black number (JP regulatory sign).
+    const disc = this.add.graphics()
+    disc.fillStyle(0xd32f2f)
+    disc.fillCircle(0, 0, 24)
+    disc.fillStyle(0xffffff)
+    disc.fillCircle(0, 0, 18)
+    this.limitSignNumber = this.add
+      .text(0, 0, '50', { fontFamily: 'Arial, sans-serif', fontSize: '20px', fontStyle: 'bold', color: '#111111' })
+      .setOrigin(0.5, 0.5)
+    this.limitSign = this.add
+      .container(GAME_WIDTH - 36, 36, [disc, this.limitSignNumber])
+      .setScrollFactor(0)
+      .setDepth(31)
+      .setVisible(false)
+  }
+
+  private updateSpeedHud() {
+    const kmh = Math.round(this.speed * KMH_PER_PX)
+    this.speedReadout.setText(String(kmh))
+    // Turn the readout amber/red as it approaches and exceeds the limit.
+    if (this.speedLimit > 0 && kmh > this.speedLimit + SPEED_TOLERANCE) {
+      this.speedReadout.setColor('#ff4d4d')
+    } else if (this.speedLimit > 0 && kmh > this.speedLimit) {
+      this.speedReadout.setColor('#ffcc00')
+    } else {
+      this.speedReadout.setColor('#ffffff')
+    }
+  }
+
+  private applySpeedLimitSign() {
+    if (this.speedLimit > 0) {
+      this.limitSignNumber.setText(String(this.speedLimit))
+      this.limitSign.setVisible(true)
+    } else {
+      this.limitSign.setVisible(false)
+    }
+  }
+
+  // ================= 止まれ stop sign =================
+
+  private clearStopSign() {
+    this.stopSign?.destroy()
+    this.stopSign = null
+  }
+
+  // Red inverted triangle with white 「止まれ」, planted beside the stop line
+  // on the player's approach — the Japanese mandatory-stop sign.
+  private drawStopSign() {
+    this.clearStopSign()
+    const g = this.add.graphics()
+    g.fillStyle(0xffffff)
+    g.fillTriangle(-24, -16, 24, -16, 0, 24)
+    g.fillStyle(0xd32f2f)
+    g.fillTriangle(-19, -13, 19, -13, 0, 18)
+    const label = this.add
+      .text(0, -2, '止まれ', { fontFamily: 'sans-serif', fontSize: '10px', fontStyle: 'bold', color: '#ffffff' })
+      .setOrigin(0.5, 0.5)
+    const c = this.add.container(LIGHT_X, STOP_LINE_Y - 24, [g, label])
+    c.setDepth(7)
+    this.stopSign = c
+  }
+
+  // ================= ETC toll gate =================
+
+  private clearTollGate() {
+    this.tollGate?.destroy()
+    this.tollGate = null
+    this.tollBar = null
+  }
+
+  // An expressway toll plaza: a gantry across the road with a green ETC lane
+  // and a drop-bar that the player must approach at crawl speed.
+  private drawTollGate() {
+    this.clearTollGate()
+    const w = HIGHWAY_W / 2 + 14
+    const parts: Phaser.GameObjects.GameObject[] = []
+
+    // Concrete gantry / island band across the carriageway.
+    const band = this.add.rectangle(0, 0, w * 2, 26, 0x2b2b2b).setStrokeStyle(2, 0x111111)
+    parts.push(band)
+
+    // Green ETC lane marker over the player's lane (x = HIGHWAY_NB_X relative).
+    const etcX = HIGHWAY_NB_X - CX
+    const etcPad = this.add.rectangle(etcX, 0, 44, 26, 0x1b5e20)
+    const etcText = this.add
+      .text(etcX, 0, 'ETC', { fontFamily: 'Arial', fontSize: '12px', fontStyle: 'bold', color: '#9cffb0' })
+      .setOrigin(0.5)
+    parts.push(etcPad, etcText)
+
+    // Drop-bar over the ETC lane (raised look = thin bar). Kept as a field so we
+    // can flick it up when the player clears the gate slowly enough.
+    const bar = this.add.rectangle(etcX, 16, 40, 6, 0xffd54f).setStrokeStyle(1, 0x7a5b00)
+    this.tollBar = bar
+    parts.push(bar)
+
+    const c = this.add.container(CX, GATE_Y, parts)
+    c.setDepth(7)
+    this.tollGate = c
+  }
+
+  // ================= Rain =================
+
+  private clearRain() {
+    this.rainLayer?.destroy()
+    this.rainLayer = null
+  }
+
+  // A camera-locked downpour: a dim tint plus drifting rain streaks.
+  private buildRain() {
+    this.clearRain()
+    const tint = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x14233a, 0.32)
+    const streaks: Phaser.GameObjects.GameObject[] = [tint]
+    for (let i = 0; i < 90; i++) {
+      const x = Phaser.Math.Between(0, GAME_WIDTH)
+      const y = Phaser.Math.Between(0, GAME_HEIGHT)
+      const s = this.add.rectangle(x, y, 2, Phaser.Math.Between(8, 16), 0xbfd4e8, 0.5)
+      streaks.push(s)
+    }
+    this.rainLayer = this.add.container(0, 0, streaks).setScrollFactor(0).setDepth(28)
+  }
+
+  private updateRain(dt: number) {
+    if (!this.rainLayer) return
+    const fall = 900 * dt
+    // Skip the tint (index 0); animate the streaks.
+    const list = this.rainLayer.list
+    for (let i = 1; i < list.length; i++) {
+      const s = list[i] as Phaser.GameObjects.Rectangle
+      s.y += fall
+      if (s.y > GAME_HEIGHT) {
+        s.y = -10
+        s.x = Phaser.Math.Between(0, GAME_WIDTH)
+      }
+    }
+  }
+
   // ================= Car =================
 
   private createCar(): Phaser.GameObjects.Container {
@@ -354,11 +632,17 @@ export class ScenarioScene extends Phaser.Scene {
     return c
   }
 
+  // Northbound lane centre the player spawns in, depending on the road.
+  private spawnLaneX(roadType: RoadType): number {
+    if (roadType === 'highway') return HIGHWAY_NB_X
+    if (this.hasBusLane) return BUS_NORMAL_X
+    return NB_LANE_X
+  }
+
   private resetCarToSpawn(roadType: RoadType = 'cross') {
     this.speed = 0
     this.heading = 0
-    const spawnX = roadType === 'highway' ? HIGHWAY_NB_X : NB_LANE_X
-    this.car.setPosition(spawnX, SPAWN_Y)
+    this.car.setPosition(this.spawnLaneX(roadType), SPAWN_Y)
     this.car.setRotation(0)
   }
 
@@ -537,6 +821,12 @@ export class ScenarioScene extends Phaser.Scene {
     this.resolved = false
     this.hasStopped = false
     this.crossedLine = false
+    this.speedLimit = scenario.speedLimit ?? 0
+    this.overspeedMs = 0
+    this.raining = scenario.weather === 'rain'
+    this.hasTollGate = scenario.tollGate === true
+    this.tollPassed = false
+    this.hasBusLane = scenario.busLane === true
 
     this.tweens.killTweensOf(this.car)
 
@@ -547,12 +837,34 @@ export class ScenarioScene extends Phaser.Scene {
     // With followOffset.y=150, at spawn scrollY = 940-150-225=565 → clamped to 550
     // (world bottom). Camera shows world y=[550,1000], light at y=580 is visible.
     this.cameras.main.followOffset.y = 150
-    const spawnX = roadType === 'highway' ? HIGHWAY_NB_X : NB_LANE_X
+    const spawnX = this.spawnLaneX(roadType)
     this.cameras.main.setScroll(spawnX - GAME_WIDTH / 2, WORLD_HEIGHT - GAME_HEIGHT)
 
     this.clearLight()
     this.currentLight = scenario.light
     if (scenario.light) this.drawLight(scenario.light)
+
+    this.clearStopSign()
+    if (scenario.stopSign) this.drawStopSign()
+
+    this.clearTollGate()
+    if (this.hasTollGate) this.drawTollGate()
+
+    this.clearRain()
+    if (this.raining) this.buildRain()
+
+    // The bus lane road + 「バス専用」 labels are drawn by buildRoad above; here we
+    // add the moving bus that occupies that lane.
+    this.busSprite?.destroy()
+    this.busSprite = null
+    if (this.hasBusLane) {
+      this.busSprite = this.createBus()
+      this.busY = STOP_LINE_Y - 60
+      this.busSprite.y = this.busY
+    }
+
+    this.applySpeedLimitSign()
+    this.updateSpeedHud()
 
     this.spawnNPCs(scenario)
 
@@ -581,6 +893,10 @@ export class ScenarioScene extends Phaser.Scene {
     this.phase = 'idle'
     this.tweens.killTweensOf(this.car)
     this.clearLight()
+    this.clearStopSign()
+    this.clearTollGate()
+    this.clearRain()
+    this.clearBusLane()
     this.clearNPCs()
     this.resetCarToSpawn()
   }
@@ -595,9 +911,12 @@ export class ScenarioScene extends Phaser.Scene {
     this.updateCar(dt)
     this.updateCamera(dt)
     this.updateNPCs(elapsed)
+    this.updateSpeedHud()
+    this.updateRain(dt)
+    this.updateBus(dt)
 
     if (this.resolved) return
-    this.evaluate(elapsed)
+    this.evaluate(elapsed, dt)
   }
 
   // Show more road ahead the faster the car goes (positive followOffset.y = more ahead).
@@ -620,8 +939,9 @@ export class ScenarioScene extends Phaser.Scene {
   private updateCar(dt: number) {
     const { left, right, throttle, brake } = this.readInput()
 
+    const brakeDecel = this.raining ? BRAKE_DECEL * RAIN_BRAKE_FACTOR : BRAKE_DECEL
     if (brake) {
-      this.speed = Math.max(0, this.speed - BRAKE_DECEL * dt)
+      this.speed = Math.max(0, this.speed - brakeDecel * dt)
     } else if (throttle) {
       this.speed = Math.min(MAX_SPEED, this.speed + ACCEL * dt)
     } else {
@@ -631,7 +951,8 @@ export class ScenarioScene extends Phaser.Scene {
     if (this.speed > STOP_EPS) {
       const steer = (right ? 1 : 0) - (left ? 1 : 0)
       const speedFactor = Math.min(1, this.speed / 120)
-      this.heading += steer * TURN_RATE * speedFactor * dt
+      const turnRate = this.raining ? TURN_RATE * RAIN_TURN_FACTOR : TURN_RATE
+      this.heading += steer * turnRate * speedFactor * dt
     }
 
     const fx = Math.sin(this.heading)
@@ -655,10 +976,38 @@ export class ScenarioScene extends Phaser.Scene {
     })
   }
 
-  private evaluate(elapsed: number) {
+  private evaluate(elapsed: number, dt: number) {
     const ev = this.scenario!.evaluation
     const maneuver = this.scenario!.maneuver
     const roadType: RoadType = this.scenario!.roadType ?? 'cross'
+
+    // 0) Speeding — sustained driving over the posted limit fails the run.
+    if (this.speedLimit > 0) {
+      const kmh = this.speed * KMH_PER_PX
+      if (kmh > this.speedLimit + SPEED_TOLERANCE) {
+        this.overspeedMs += dt * 1000
+        if (this.overspeedMs > SPEED_GRACE_MS) return this.resolve('speeding')
+      } else {
+        this.overspeedMs = Math.max(0, this.overspeedMs - dt * 1000)
+      }
+    }
+
+    // 0b) ETC toll gate — must reach the bar at crawl speed or hit it.
+    if (this.hasTollGate && !this.tollPassed && this.car.y <= GATE_Y) {
+      const kmh = this.speed * KMH_PER_PX
+      if (kmh > ETC_MAX_KMH) {
+        // Slam the bar down and treat it as a collision.
+        this.tollBar?.setFillStyle(0xd32f2f)
+        return this.resolve('collision')
+      }
+      this.tollPassed = true
+      this.tollBar?.setVisible(false) // bar lifts / opens
+    }
+
+    // 0c) Bus-only lane — entering the blue lane during restricted hours fails.
+    if (this.hasBusLane && elapsed > 250 && this.car.x < CX - 4) {
+      return this.resolve('bus_lane')
+    }
 
     // 1) Collision
     for (const { def, obj } of this.npcs) {
@@ -713,6 +1062,9 @@ export class ScenarioScene extends Phaser.Scene {
   private isOffRoad(roadType: RoadType): boolean {
     if (roadType === 'highway') {
       return Math.abs(this.car.x - CX) > HIGHWAY_W / 2 + 6
+    }
+    if (roadType === 'straight' && this.hasBusLane) {
+      return Math.abs(this.car.x - CX) > BUS_ROAD_W / 2 + 6
     }
 
     const onNS = Math.abs(this.car.x - CX) <= ROAD_W / 2 + 6

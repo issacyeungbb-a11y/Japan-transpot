@@ -25,6 +25,7 @@ export const drivingScenarios: Scenario[] = [
     instruction: { 'zh-TW': '直行通過路口', ja: '交差点を直進' },
     difficulty: 1,
     maneuver: 'straight',
+    speedLimit: 50,
     light: { type: 'standard', color: 'red' },
     lightChanges: [{ atMs: 3500, state: { type: 'standard', color: 'green' } }],
     evaluation: { waitForGo: true },
@@ -51,6 +52,7 @@ export const drivingScenarios: Scenario[] = [
     instruction: { 'zh-TW': '直行通過路口', ja: '交差点を直進' },
     difficulty: 1,
     maneuver: 'straight',
+    speedLimit: 50,
     light: { type: 'standard', color: 'green' },
     evaluation: {},
     feedback: {
@@ -72,6 +74,7 @@ export const drivingScenarios: Scenario[] = [
     instruction: { 'zh-TW': '直行通過路口', ja: '交差点を直進' },
     difficulty: 2,
     maneuver: 'straight',
+    speedLimit: 50,
     light: { type: 'standard', color: 'yellow' },
     lightChanges: [{ atMs: 3500, state: { type: 'standard', color: 'green' } }],
     evaluation: { waitForGo: true },
@@ -98,6 +101,7 @@ export const drivingScenarios: Scenario[] = [
     instruction: { 'zh-TW': '直行（注意減速通過）', ja: '直進（注意して通過）' },
     difficulty: 1,
     maneuver: 'straight',
+    speedLimit: 40,
     light: { type: 'flashing', color: 'yellow' },
     evaluation: {},
     feedback: {
@@ -119,6 +123,7 @@ export const drivingScenarios: Scenario[] = [
     instruction: { 'zh-TW': '直行通過路口', ja: '交差点を直進' },
     difficulty: 1,
     maneuver: 'straight',
+    speedLimit: 40,
     light: { type: 'standard', color: 'green' },
     npcs: [
       {
@@ -153,6 +158,7 @@ export const drivingScenarios: Scenario[] = [
     instruction: { 'zh-TW': '直行（紅閃要完全停低先過）', ja: '直進（赤点滅は一時停止）' },
     difficulty: 2,
     maneuver: 'straight',
+    speedLimit: 30,
     light: { type: 'flashing', color: 'red' },
     evaluation: { mustStop: true },
     feedback: {
@@ -168,9 +174,45 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
+  // 7) 止まれ stop sign — full stop at an unsignalised junction
+  {
+    id: 'stop-sign',
+    category: 'priority',
+    roadType: 'cross',
+    modes: ['study', 'normal', 'challenge'],
+    title: { 'zh-TW': '「止まれ」一時停止', ja: '「止まれ」一時停止' },
+    instruction: { 'zh-TW': '直行（見「止まれ」要完全停車）', ja: '直進（「止まれ」で完全停止）' },
+    difficulty: 2,
+    maneuver: 'straight',
+    speedLimit: 30,
+    stopSign: true,
+    light: null,
+    npcs: [
+      {
+        id: 'cross',
+        type: 'vehicle',
+        startX: -40, startY: CROSS_Y,
+        endX: 840,   endY: CROSS_Y,
+        speed: 170, startAtMs: 1500, color: 0xe69a2e,
+      },
+    ],
+    evaluation: { mustStop: true },
+    feedback: {
+      explanation: {
+        'zh-TW': '見到紅色三角「止まれ」（一時停止）標誌，必須喺停止線前完全停定，確認左右安全先可以行。日本警察喺呢啲位最常抄牌，租車自駕新手最易中招。',
+        ja: '赤い三角の「止まれ」標識では、停止線の手前で必ず完全に停止し、左右の安全を確認してから進みます。レンタカーの一時不停止は最も多い取り締まり対象です。',
+      },
+      lawArticle: '道路交通法第43条',
+      commonMistake: {
+        'zh-TW': '「慢慢碌過去」唔算停車，輪胎一定要完全靜止先合法。',
+        ja: '徐行して通過は違反。タイヤが完全に止まる必要があります。',
+      },
+    },
+  },
+
   // ── Normal + Challenge ─────────────────────────────────────────────────────
 
-  // 7) Left turn with a pedestrian crossing the exit
+  // 8) Left turn with a pedestrian crossing the exit
   {
     id: 'left-ped',
     category: 'pedestrian',
@@ -180,6 +222,7 @@ export const drivingScenarios: Scenario[] = [
     instruction: { 'zh-TW': '左轉（讓橫過嘅行人）', ja: '左折（横断歩行者を優先）' },
     difficulty: 2,
     maneuver: 'left',
+    speedLimit: 40,
     light: { type: 'standard', color: 'green' },
     npcs: [
       {
@@ -200,7 +243,7 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
-  // 8) One-way street — only the legal direction (left)
+  // 9) One-way street — only the legal direction (left)
   {
     id: 'oneway-left',
     category: 'oneway',
@@ -210,6 +253,7 @@ export const drivingScenarios: Scenario[] = [
     instruction: { 'zh-TW': '前方一方通行，只可左轉', ja: '前方は一方通行、左折のみ可' },
     difficulty: 2,
     maneuver: 'left',
+    speedLimit: 30,
     light: null,
     evaluation: { allowedManeuvers: ['left'] },
     feedback: {
@@ -225,9 +269,186 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
+  // 10) Narrow back-street — yield to the oncoming car, let it pass first
+  {
+    id: 'narrow-yield',
+    category: 'priority',
+    roadType: 'straight',
+    modes: ['normal', 'challenge'],
+    title: { 'zh-TW': '窄路會車——靠左慢行', ja: '狭い道での離合——左に寄って徐行' },
+    instruction: { 'zh-TW': '直行（窄路會車，靠左慢行唔好越界）', ja: '直進（左に寄り徐行・はみ出さない）' },
+    difficulty: 2,
+    maneuver: 'straight',
+    speedLimit: 30,
+    light: null,
+    npcs: [
+      {
+        id: 'oncoming',
+        type: 'vehicle',
+        startX: SB_X, startY: 120,
+        endX:   SB_X, endY:   1040,
+        speed: 95, startAtMs: 600, color: 0xcc5522,
+      },
+    ],
+    evaluation: {},
+    feedback: {
+      explanation: {
+        'zh-TW': '那霸同離島好多窄到得一架車闊嘅路。會車時要減速、靠左，必要時停低等對向車先過，唔好硬闖。',
+        ja: '那覇や離島には車1台分しかない狭い道が多いです。離合時は減速して左に寄り、必要なら停止して対向車を先に通します。',
+      },
+      lawArticle: '道路交通法第18条・第27条',
+      commonMistake: {
+        'zh-TW': '硬住頭爭路，結果兩車卡死或者刮花，自駕最常見麻煩。',
+        ja: '無理に進んで離合できず立ち往生・接触するのが典型的なトラブルです。',
+      },
+    },
+  },
+
+  // 11) School zone — keep to 30 km/h and watch for a child
+  {
+    id: 'school-zone',
+    category: 'speed',
+    roadType: 'cross',
+    modes: ['normal', 'challenge'],
+    title: { 'zh-TW': '學校區——時速30', ja: 'スクールゾーン——30km/h' },
+    instruction: { 'zh-TW': '直行（學校區減速到30以下）', ja: '直進（スクールゾーンは30以下に減速）' },
+    difficulty: 2,
+    maneuver: 'straight',
+    speedLimit: 30,
+    light: { type: 'standard', color: 'green' },
+    npcs: [
+      {
+        id: 'child',
+        type: 'pedestrian',
+        startX: CX + ROAD_W / 2 + 10, startY: PED_Y,
+        endX:   CX - ROAD_W / 2 - 10, endY:   PED_Y,
+        speed: 46, startAtMs: 2600, color: 0xff7043,
+      },
+    ],
+    evaluation: {},
+    feedback: {
+      explanation: {
+        'zh-TW': '「通学路」（學校區）限速通常30km/h，上下課時間細路會突然衝出馬路。睇住速度錶，控制喺限速以下，預留煞車距離。',
+        ja: 'スクールゾーン（通学路）の制限速度は多くが30km/h。登下校時間帯は子供が飛び出します。速度計を見て制限速度以下を保ち、停止距離を確保しましょう。',
+      },
+      lawArticle: '道路交通法第22条',
+      commonMistake: {
+        'zh-TW': '習慣咗踩到50，喺學校區就太快，細路一衝出就煞唔切。',
+        ja: '50km/hの感覚のままだと速すぎ。子供の飛び出しに対応できません。',
+      },
+    },
+  },
+
+  // 12) Naha bus-only lane — don't drive in it during restricted hours
+  {
+    id: 'bus-lane',
+    category: 'oneway',
+    roadType: 'straight',
+    modes: ['normal', 'challenge'],
+    title: { 'zh-TW': '巴士專用線——睇時段', ja: 'バス専用レーン——時間帯' },
+    instruction: { 'zh-TW': '直行（靠右行，唔好入藍色巴士專用線）', ja: '直進（右側を走行・青いバス専用レーンに入らない）' },
+    difficulty: 3,
+    maneuver: 'straight',
+    speedLimit: 50,
+    busLane: true,
+    light: null,
+    evaluation: {},
+    feedback: {
+      explanation: {
+        'zh-TW': '那霸國道58號等幹道有「バス専用」車道，繁忙時段（一般平日約7:30–9:00、17:30–19:00）私家車唔可以入，違例會被抄牌。睇地面藍字同路牌時間。',
+        ja: '那覇の国道58号などには「バス専用」レーンがあり、平日朝夕の指定時間帯（概ね7:30–9:00、17:30–19:00）は一般車進入禁止です。路面標示と標識の時間を確認しましょう。',
+      },
+      lawArticle: '道路交通法第20条の2',
+      commonMistake: {
+        'zh-TW': '見個lane空就駛入，其實時段內係巴士專用，遊客最易中招。',
+        ja: '空いているからと進入しがちですが、時間帯内はバス専用です。',
+      },
+    },
+  },
+
+  // 13) Rain — wet road, yield to a pedestrian with a longer braking distance
+  {
+    id: 'rain-ped',
+    category: 'pedestrian',
+    roadType: 'cross',
+    modes: ['normal', 'challenge'],
+    title: { 'zh-TW': '落雨讓行人', ja: '雨天——歩行者に道を譲る' },
+    instruction: { 'zh-TW': '直行（落雨路滑，提早煞車讓行人）', ja: '直進（雨で滑る・早めにブレーキで歩行者を優先）' },
+    difficulty: 3,
+    maneuver: 'straight',
+    speedLimit: 40,
+    weather: 'rain',
+    light: { type: 'standard', color: 'green' },
+    npcs: [
+      {
+        id: 'ped',
+        type: 'pedestrian',
+        startX: CX - ROAD_W / 2 - 10, startY: PED_Y,
+        endX:   CX + ROAD_W / 2 + 10, endY:   PED_Y,
+        speed: 46, startAtMs: 2400, color: 0xffd54f,
+      },
+    ],
+    evaluation: {},
+    feedback: {
+      explanation: {
+        'zh-TW': '沖繩成日落雨，濕滑路面煞車距離會長好多，輪胎抓地力又差。落雨要提早收油、提早輕煞，留多啲安全距離，唔好突然死踩。',
+        ja: '沖縄は雨が多く、濡れた路面では制動距離が大きく伸び、グリップも落ちます。早めにアクセルを緩めて早めにブレーキし、車間と安全距離を多めに取りましょう。',
+      },
+      lawArticle: '道路交通法第38条・第70条',
+      commonMistake: {
+        'zh-TW': '當乾地咁踩，落雨先發現煞唔切，尤其讓緊行人嗰陣。',
+        ja: '乾いた路面の感覚で運転し、雨天で止まりきれないのが典型例です。',
+      },
+    },
+  },
+
   // ── Challenge only ─────────────────────────────────────────────────────────
 
-  // 9) Right turn — yield to oncoming straight traffic
+  // 14) ETC toll gate + merge onto the Okinawa Expressway
+  {
+    id: 'etc-merge',
+    category: 'standard',
+    roadType: 'highway',
+    modes: ['challenge'],
+    title: { 'zh-TW': 'ETC收費站＋合流', ja: 'ETC料金所＋合流' },
+    instruction: { 'zh-TW': '直行（ETC閘口減速到20以下，再加速合流）', ja: '直進（ETCは20以下に減速→加速して合流）' },
+    difficulty: 3,
+    maneuver: 'straight',
+    speedLimit: 80,
+    tollGate: true,
+    light: null,
+    npcs: [
+      // Mainline traffic streaming past in the opposite carriageway.
+      {
+        id: 'main1',
+        type: 'vehicle',
+        startX: HWY_SB_X, startY: 80,
+        endX:   HWY_SB_X, endY:   1050,
+        speed: 150, startAtMs: 800, color: 0x4455ff,
+      },
+      {
+        id: 'main2',
+        type: 'vehicle',
+        startX: HWY_SB_X, startY: 80,
+        endX:   HWY_SB_X, endY:   1050,
+        speed: 150, startAtMs: 3200, color: 0xff5544,
+      },
+    ],
+    evaluation: {},
+    feedback: {
+      explanation: {
+        'zh-TW': '上沖繩自動車道要經收費站：ETC車道唔使停但要減到20km/h以下俾閘門開（太快會撞桿）；冇ETC就行「一般」車道攞票／俾現金。過閘後喺加速車道加速到接近本線車速，望後鏡睇空檔先順暢合流。',
+        ja: '沖縄自動車道の料金所：ETCレーンは止まらないが20km/h以下に減速（速すぎるとバーに衝突）。ETCが無ければ「一般」レーンで発券・現金。通過後は加速車線で本線速度近くまで加速し、後方を確認して合流します。',
+      },
+      lawArticle: '道路交通法第75条の4・道路整備特別措置法',
+      commonMistake: {
+        'zh-TW': '高速衝過ETC閘門撞桿，或者合流時唔加速、停喺加速車道度等，好危險。',
+        ja: 'ETCを高速で通過してバーに衝突、または加速せず合流車線で止まるのは危険です。',
+      },
+    },
+  },
+
+  // 15) Right turn — yield to oncoming straight traffic
   {
     id: 'std-right-yield',
     category: 'standard',
@@ -237,6 +458,7 @@ export const drivingScenarios: Scenario[] = [
     instruction: { 'zh-TW': '右轉（讓對向直行車先行）', ja: '右折（対向直進車を先に）' },
     difficulty: 3,
     maneuver: 'right',
+    speedLimit: 50,
     light: { type: 'standard', color: 'green' },
     npcs: [
       {
@@ -257,7 +479,7 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
-  // 10) Red main + right arrow — only right turn allowed
+  // 16) Red main + right arrow — only right turn allowed
   {
     id: 'arrow-red-right',
     category: 'arrow',
@@ -267,6 +489,7 @@ export const drivingScenarios: Scenario[] = [
     instruction: { 'zh-TW': '右轉（紅燈但右箭頭亮起）', ja: '右折（赤でも右矢印が点灯）' },
     difficulty: 3,
     maneuver: 'right',
+    speedLimit: 50,
     light: { type: 'arrow', mainColor: 'red', activeArrows: ['right'] },
     evaluation: { allowedManeuvers: ['right'] },
     feedback: {
@@ -282,7 +505,7 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
-  // 11) No signal — yield to priority (crossing) road
+  // 17) No signal — yield to priority (crossing) road
   {
     id: 'priority-yield',
     category: 'priority',
@@ -292,6 +515,7 @@ export const drivingScenarios: Scenario[] = [
     instruction: { 'zh-TW': '直行（橫向為優先道路）', ja: '直進（横は優先道路）' },
     difficulty: 3,
     maneuver: 'straight',
+    speedLimit: 40,
     light: null,
     npcs: [
       {
@@ -312,7 +536,7 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
-  // 12) Busy intersection — green light but pedestrian + oncoming car
+  // 18) Busy intersection — green light but pedestrian + oncoming car
   {
     id: 'busy-intersection',
     category: 'pedestrian',
@@ -322,6 +546,7 @@ export const drivingScenarios: Scenario[] = [
     instruction: { 'zh-TW': '直行（留意行人同對向車）', ja: '直進（歩行者・対向車に注意）' },
     difficulty: 3,
     maneuver: 'straight',
+    speedLimit: 50,
     light: { type: 'standard', color: 'green' },
     npcs: [
       // Pedestrian crossing in the player's path (south crosswalk)
@@ -355,7 +580,7 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
-  // 13) Right turn — TWO oncoming vehicles in sequence
+  // 19) Right turn — TWO oncoming vehicles in sequence
   {
     id: 'right-two-oncoming',
     category: 'standard',
@@ -365,6 +590,7 @@ export const drivingScenarios: Scenario[] = [
     instruction: { 'zh-TW': '右轉（等兩輛對向車都過先轉）', ja: '右折（2台の対向車が過ぎてから）' },
     difficulty: 3,
     maneuver: 'right',
+    speedLimit: 50,
     light: { type: 'standard', color: 'green' },
     npcs: [
       {
@@ -396,16 +622,17 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
-  // 14) Highway — maintain lane, oncoming fast vehicles
+  // 20) Expressway — maintain lane on the Okinawa Expressway (80 km/h)
   {
     id: 'highway-express',
     category: 'standard',
     roadType: 'highway',
     modes: ['challenge'],
-    title: { 'zh-TW': '高速公路——保持車道', ja: '高速道路——車線を守れ' },
-    instruction: { 'zh-TW': '高速直行（唔好偏離車道）', ja: '高速直進（車線を維持）' },
+    title: { 'zh-TW': '沖繩自動車道——保持車道', ja: '沖縄自動車道——車線を守れ' },
+    instruction: { 'zh-TW': '高速直行（限速80，保持車道）', ja: '高速直進（80km/h・車線を維持）' },
     difficulty: 3,
     maneuver: 'straight',
+    speedLimit: 80,
     light: null,
     npcs: [
       // Three southbound vehicles zooming past in the opposite carriageway
@@ -434,13 +661,13 @@ export const drivingScenarios: Scenario[] = [
     evaluation: {},
     feedback: {
       explanation: {
-        'zh-TW': '日本高速公路（高速道路）限速100 km/h，最低時速50 km/h。必須保持車道，唔可以喺路肩停車（緊急除外）。',
-        ja: '日本の高速道路は最高速度100km/h、最低速度50km/h。車線を守り、路肩への駐停車は緊急時以外禁止です。',
+        'zh-TW': '沖繩自動車道（許田～那霸）最高限速80 km/h、最低50 km/h，係日本少數限速80嘅高速。要保持車道、收費站用ETC或現金，唔可以喺路肩停車（緊急除外）。',
+        ja: '沖縄自動車道は最高速度80km/h・最低50km/h（多くの本州の高速100km/hより低い）。車線を守り、料金所はETCか現金、路肩への駐停車は緊急時以外禁止です。',
       },
       lawArticle: '道路交通法第75条の4・高速自動車国道法',
       commonMistake: {
-        'zh-TW': '對向高速車嚇親，反應過大轉波，衝出車道係常見危機。',
-        ja: '対向車に驚いて過剰にハンドルを切り、車線を逸脱する事故が多いです。',
+        'zh-TW': '以為日本高速一律100，喺沖繩踩100就超速；對向車嚇親又過度扭軚衝出車道。',
+        ja: '日本の高速は一律100と思い込み超過しがち。対向車に驚いて過剰にハンドルを切る事故も多いです。',
       },
     },
   },

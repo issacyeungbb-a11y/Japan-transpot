@@ -84,7 +84,7 @@ export type GameMode = 'study' | 'normal' | 'challenge'
 
 export interface Scenario {
   id: string
-  category: 'standard' | 'arrow' | 'flashing' | 'pedestrian' | 'priority' | 'oneway'
+  category: 'standard' | 'arrow' | 'flashing' | 'pedestrian' | 'priority' | 'oneway' | 'speed'
   title: BilingualText
   // Short goal shown to the player before the car starts moving.
   instruction: BilingualText
@@ -97,6 +97,20 @@ export interface Scenario {
   light: TrafficLightState | null
   lightChanges?: LightChange[]
   npcs?: ScenarioNPC[]
+  // Posted speed limit in km/h. Shows a Japanese round speed-limit sign and
+  // enforces overspeed. Okinawa: local 40–60, Okinawa Expressway 80.
+  speedLimit?: number
+  // Draws a 止まれ (stop) sign on the approach — full stop is mandatory.
+  stopSign?: boolean
+  // Weather. 'rain' adds a downpour overlay and a slippery road: braking
+  // distance grows and grip drops, like real wet Okinawa driving.
+  weather?: 'rain'
+  // Draws an ETC toll gate across an expressway approach. The bar only clears
+  // if you slow to ETC speed (≤25 km/h); arriving too fast hits the barrier.
+  tollGate?: boolean
+  // Renders a blue 「バス専用」 lane on the left with a bus; driving in it during
+  // the restricted hours is a violation. Player must keep to the right lane.
+  busLane?: boolean
   evaluation: ScenarioEvaluation
   feedback: FeedbackContent
 }
@@ -108,6 +122,8 @@ export type OutcomeReason =
   | 'collision' // hit a vehicle or pedestrian
   | 'wrong_way' // took an illegal direction
   | 'off_road' // left the roadway
+  | 'speeding' // exceeded the posted speed limit for too long
+  | 'bus_lane' // drove in a bus-only lane during restricted hours
   | 'timeout' // never completed the maneuver
 
 export interface DrivingOutcome {
