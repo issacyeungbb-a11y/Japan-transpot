@@ -1,5 +1,5 @@
 import { useGameStore } from '../../store/gameStore'
-import { ALL_SCENARIOS } from '../../data/scenarios'
+import { scenariosForMode } from '../../data/scenariosForMode'
 import type { GameMode, Scenario } from '../../data/types'
 
 const CATEGORY_ICON: Record<Scenario['category'], string> = {
@@ -23,12 +23,6 @@ const ROAD_LABEL: Record<string, Record<string, string>> = {
   't-junction':{ 'zh-TW': 'T形路口', ja: 'T字路' },
   straight:    { 'zh-TW': '直路',     ja: '直線路' },
   highway:     { 'zh-TW': '高速公路', ja: '高速道路' },
-}
-
-export function scenariosForMode(mode: GameMode): Scenario[] {
-  return ALL_SCENARIOS
-    .filter((s) => !s.modes || s.modes.includes(mode))
-    .sort((a, b) => a.difficulty - b.difficulty)
 }
 
 interface Props {

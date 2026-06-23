@@ -29,13 +29,16 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
   const lang = useGameStore((s) => s.lang)
   const session = useGameStore((s) => s.session)
   const [phase, setPhase] = useState<GamePhase>('loading')
-  const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null)
   const [instruction, setInstruction] = useState<{ text: BilingualText; maneuver: Maneuver } | null>(null)
   const [outcome, setOutcome] = useState<DrivingOutcome | null>(null)
   const [pointsEarned, setPointsEarned] = useState(0)
 
   const sceneReadyRef = useRef(false)
   const pendingScenarioRef = useRef<Scenario | null>(null)
+  const scenarioId = session?.scenarioIds[session.currentIndex]
+  const currentScenario = scenarioId ? getScenarioById(scenarioId) : null
+  const hasSession = Boolean(session)
+  const isSessionComplete = Boolean(session && session.currentIndex >= session.scenarioIds.length)
 
   // Phaser scene finished registering its listeners
   useEffect(() => {
@@ -52,23 +55,34 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
 
   // Stage the current scenario
   useEffect(() => {
-    if (!session) return
-    if (session.currentIndex >= session.scenarioIds.length) {
+    if (!hasSession) return
+    if (isSessionComplete) {
       onSessionEnd()
       return
     }
-    const scenario = getScenarioById(session.scenarioIds[session.currentIndex])
-    if (!scenario) return
-    setCurrentScenario(scenario)
-    setOutcome(null)
-    setPhase('loading')
-    resetInputState()
-    if (sceneReadyRef.current) {
-      bridge.emit(REACT_EVENTS.START_SCENARIO, scenario)
-    } else {
-      pendingScenarioRef.current = scenario
+    if (!currentScenario) return
+
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled) return
+
+      setInstruction(null)
+      setOutcome(null)
+      setPointsEarned(0)
+      setPhase('loading')
+      resetInputState()
+
+      if (sceneReadyRef.current) {
+        bridge.emit(REACT_EVENTS.START_SCENARIO, currentScenario)
+      } else {
+        pendingScenarioRef.current = currentScenario
+      }
+    })
+
+    return () => {
+      cancelled = true
     }
-  }, [session?.currentIndex])
+  }, [currentScenario, hasSession, isSessionComplete, onSessionEnd])
 
   // Scenario staged → show the instruction ("get ready")
   useEffect(() => {

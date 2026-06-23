@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { MainMenuScreen } from './ui/screens/MainMenuScreen'
-import { ScenarioListScreen, scenariosForMode } from './ui/screens/ScenarioListScreen'
+import { ScenarioListScreen } from './ui/screens/ScenarioListScreen'
 import { GameScreen } from './ui/screens/GameScreen'
 import { ResultsScreen } from './ui/screens/ResultsScreen'
 import { useGameStore } from './store/gameStore'
+import { scenariosForMode } from './data/scenariosForMode'
 import type { GameMode } from './data/types'
 
 type AppScreen = 'menu' | 'scenario-list' | 'game' | 'results'
