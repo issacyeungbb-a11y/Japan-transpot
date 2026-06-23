@@ -21,6 +21,17 @@ const INTERSECTION_COLOR = 0x555555
 const HIGHWAY_SHOULDER = 0x888888  // concrete barrier strip
 const HIGHWAY_ASPHALT  = 0x383838  // darker expressway surface
 
+// Roadside building palettes (Okinawa-flavoured: terracotta, sandstone, white concrete).
+// wall = shaded south face, roof = lit top face, edge = bright rim, win = window glass.
+interface BuildingPalette { wall: number; roof: number; edge: number; win: number }
+const BUILDING_PALETTES: BuildingPalette[] = [
+  { wall: 0xa9786c, roof: 0xc99a8c, edge: 0xe6bdac, win: 0x352824 }, // terracotta
+  { wall: 0x88a0ab, roof: 0xaabdc7, edge: 0xd2e3ec, win: 0x213039 }, // grey-blue
+  { wall: 0xc2ac80, roof: 0xe0cda0, edge: 0xf0e2bd, win: 0x3a3320 }, // sandstone
+  { wall: 0x93aa88, roof: 0xb6c9aa, edge: 0xd6e4cc, win: 0x26301f }, // soft green
+  { wall: 0xcfc8ba, roof: 0xeae4d8, edge: 0xf7f3ea, win: 0x33302a }, // white concrete
+]
+
 // ---- World geometry ----
 // The world is taller than the camera viewport; the camera follows the car.
 export const WORLD_HEIGHT = 1000
@@ -106,6 +117,7 @@ export class ScenarioScene extends Phaser.Scene {
   private goalGraphics!: Phaser.GameObjects.Graphics
   private lightContainer: Phaser.GameObjects.Container | null = null
   private lightLamp: Phaser.GameObjects.Graphics | null = null
+  private lightHousing: Phaser.GameObjects.Graphics | null = null
   private npcs: NpcSprite[] = []
   private flashTimer: Phaser.Time.TimerEvent | null = null
   private stopSign: Phaser.GameObjects.Container | null = null
@@ -178,6 +190,8 @@ export class ScenarioScene extends Phaser.Scene {
       this.keyD = this.input.keyboard.addKey('D')
     }
 
+    this.addVignette()
+
     bridge.on(REACT_EVENTS.START_SCENARIO, this.onStartScenario)
     bridge.on(REACT_EVENTS.NEXT_SCENARIO, this.onNextScenario)
 
@@ -200,9 +214,14 @@ export class ScenarioScene extends Phaser.Scene {
     // drawBusLaneRoad re-creates them when this scenario uses a bus lane.
     this.clearBusLane()
 
-    // Grass background (full world height)
+    // Grass background (full world height) + organic texture
     g.fillStyle(GRASS_COLOR)
     g.fillRect(0, 0, GAME_WIDTH, WORLD_HEIGHT)
+    this.drawGrassDetail(g)
+
+    // Roadside scenery sits on the grass first; the roads/sidewalks are painted
+    // on top afterwards, so nothing can bleed onto the carriageway.
+    this.drawScenery(g, roadType)
 
     if (roadType === 'highway') {
       this.drawHighwayRoad(g)
@@ -265,6 +284,9 @@ export class ScenarioScene extends Phaser.Scene {
     // Road surface
     g.fillStyle(ROAD_COLOR)
     g.fillRect(CX - ROAD_W / 2, 0, ROAD_W, WORLD_HEIGHT)
+
+    this.drawCurbsV(g)
+    this.drawAsphaltShadingV(g)
 
     // Centre dashes
     g.fillStyle(ROAD_LINE)
@@ -385,6 +407,23 @@ export class ScenarioScene extends Phaser.Scene {
     this.busSprite.y = this.busY
   }
 
+  // Raised curb on a vertical (N–S) road: bright top edge + shadow cast onto asphalt.
+  private drawCurbsV(g: Phaser.GameObjects.Graphics, y0 = 0, y1 = WORLD_HEIGHT) {
+    g.fillStyle(0xc6b69e) // sunlit curb top
+    g.fillRect(CX - ROAD_W / 2 - 8, y0, 3, y1 - y0)
+    g.fillRect(CX + ROAD_W / 2 + 5, y0, 3, y1 - y0)
+    g.fillStyle(0x000000, 0.22) // curb shadow on the road
+    g.fillRect(CX - ROAD_W / 2, y0, 5, y1 - y0)
+    g.fillRect(CX + ROAD_W / 2 - 5, y0, 5, y1 - y0)
+  }
+
+  // Darken the asphalt toward its edges so the centre reads as a raised crown.
+  private drawAsphaltShadingV(g: Phaser.GameObjects.Graphics, y0 = 0, y1 = WORLD_HEIGHT) {
+    g.fillStyle(0x000000, 0.10)
+    g.fillRect(CX - ROAD_W / 2 + 5, y0, 7, y1 - y0)
+    g.fillRect(CX + ROAD_W / 2 - 12, y0, 7, y1 - y0)
+  }
+
   private drawCrossRoad(g: Phaser.GameObjects.Graphics, roadType: RoadType) {
     // Sidewalks
     g.fillStyle(SIDEWALK_COLOR)
@@ -396,9 +435,24 @@ export class ScenarioScene extends Phaser.Scene {
     g.fillRect(CX - ROAD_W / 2, 0, ROAD_W, WORLD_HEIGHT)
     g.fillRect(0, CY - ROAD_W / 2, GAME_WIDTH, ROAD_W)
 
-    // Intersection box
+    // Raised curbs + asphalt crown shading on both arms (intersection box repaints centre)
+    this.drawCurbsV(g)
+    this.drawAsphaltShadingV(g)
+    g.fillStyle(0xc6b69e)
+    g.fillRect(0, CY - ROAD_W / 2 - 8, GAME_WIDTH, 3)
+    g.fillRect(0, CY + ROAD_W / 2 + 5, GAME_WIDTH, 3)
+    g.fillStyle(0x000000, 0.22)
+    g.fillRect(0, CY - ROAD_W / 2, GAME_WIDTH, 5)
+    g.fillRect(0, CY + ROAD_W / 2 - 5, GAME_WIDTH, 5)
+
+    // Intersection box (raised slightly: soft drop-shadow on the south/east approaches)
+    g.fillStyle(0x000000, 0.18)
+    g.fillRect(CX - INT / 2 + 3, CY - INT / 2 + 3, INT, INT)
     g.fillStyle(INTERSECTION_COLOR)
     g.fillRect(CX - INT / 2, CY - INT / 2, INT, INT)
+    // tactile paving sheen across the box
+    g.fillStyle(0xffffff, 0.04)
+    g.fillRect(CX - INT / 2, CY - INT / 2, INT, INT / 2)
 
     // For t-junction: paint over the north arm with grass+sidewalk to block it visually
     if (roadType === 't-junction') {
@@ -445,6 +499,155 @@ export class ScenarioScene extends Phaser.Scene {
     for (let i = 0; i < stripeCount; i++) {
       g.fillRect(CX - width / 2 + i * (width / stripeCount) + 3, CROSSWALK_Y - 9, stripeW, 18)
     }
+  }
+
+  // ================= Scenery (buildings, trees, grass) =================
+
+  // Deterministic LCG so the same scenario always lays out identically.
+  private rngFactory(seed: number) {
+    let s = seed >>> 0
+    return () => {
+      s = (Math.imul(s, 1664525) + 1013904223) >>> 0
+      return s / 0xffffffff
+    }
+  }
+
+  private drawGrassDetail(g: Phaser.GameObjects.Graphics) {
+    const rnd = this.rngFactory(0x9e37)
+    for (let i = 0; i < 70; i++) {
+      const x = rnd() * GAME_WIDTH
+      const y = rnd() * WORLD_HEIGHT
+      g.fillStyle(rnd() > 0.5 ? 0x356b29 : 0x4f9040, 0.22)
+      g.fillEllipse(x, y, 28 + rnd() * 46, 18 + rnd() * 26)
+    }
+  }
+
+  private drawScenery(g: Phaser.GameObjects.Graphics, roadType: RoadType) {
+    if (roadType === 'highway') {
+      // Expressway runs through open country: tree lines either side, no city blocks.
+      const rnd = this.rngFactory(0x5151)
+      for (let y = 30; y < WORLD_HEIGHT; y += 70 + (rnd() * 30 | 0)) {
+        this.drawTree(g, 40 + rnd() * 150, y, 0.9 + rnd() * 0.7)
+        this.drawTree(g, GAME_WIDTH - 40 - rnd() * 150, y + 20, 0.9 + rnd() * 0.7)
+      }
+      return
+    }
+
+    const leftMax  = CX - ROAD_W / 2 - 12
+    const rightMin = CX + ROAD_W / 2 + 12
+    // For cross/T roads, keep the horizontal carriageway band clear.
+    const band: [number, number] | null =
+      roadType === 'straight' ? null : [CY - ROAD_W / 2 - 16, CY + ROAD_W / 2 + 16]
+
+    this.placeBlocks(g, 14, leftMax - 6, band, 0x1a2b)
+    this.placeBlocks(g, rightMin + 6, GAME_WIDTH - 14, band, 0x7c3f)
+  }
+
+  private placeBlocks(
+    g: Phaser.GameObjects.Graphics,
+    xStart: number,
+    xEnd: number,
+    band: [number, number] | null,
+    seed: number,
+  ) {
+    const rnd = this.rngFactory(seed)
+    let y = 36
+    while (y < WORLD_HEIGHT - 70) {
+      const w = 58 + (rnd() * 42 | 0)
+      const depth = 16 + (rnd() * 10 | 0)
+      const wallH = 28 + (rnd() * 44 | 0)
+      const total = depth + wallH
+      // Skip anything that would intrude on the cross-road band.
+      if (band && y + total + 10 > band[0] && y < band[1]) {
+        y = band[1] + 10
+        continue
+      }
+      const span = Math.max(6, xEnd - xStart - w)
+      const x = xStart + (rnd() * span | 0)
+      if (rnd() > 0.8) {
+        this.drawTree(g, x + w / 2, y + total - 6, 0.8 + rnd() * 0.6)
+      } else {
+        this.drawBuilding(g, x, y, w, depth, wallH, rnd())
+      }
+      y += total + 14 + (rnd() * 22 | 0)
+    }
+  }
+
+  // 2.5-D building: lit roof (top), shaded south wall with windows, cast shadow.
+  private drawBuilding(
+    g: Phaser.GameObjects.Graphics,
+    x: number, y: number, w: number, depth: number, wallH: number, t: number,
+  ) {
+    const p = BUILDING_PALETTES[Math.min(BUILDING_PALETTES.length - 1, t * BUILDING_PALETTES.length | 0)]
+    const frontY = y + depth
+
+    // Cast shadow toward the bottom-right (light from upper-left)
+    g.fillStyle(0x000000, 0.16)
+    g.fillRect(x + 6, y + 8, w, depth + wallH)
+
+    // South wall (front face)
+    g.fillStyle(p.wall)
+    g.fillRect(x, frontY, w, wallH)
+    // grounded contact shadow
+    g.fillStyle(0x000000, 0.14)
+    g.fillRect(x, frontY + wallH - Math.min(9, wallH), w, Math.min(9, wallH))
+
+    // Windows grid on the wall
+    g.fillStyle(p.win, 0.9)
+    const cols = Math.max(2, w / 17 | 0)
+    const rows = Math.max(1, wallH / 16 | 0)
+    const cw = (w - 8) / cols
+    const rh = (wallH - 6) / rows
+    for (let ci = 0; ci < cols; ci++) {
+      for (let ri = 0; ri < rows; ri++) {
+        g.fillRect(x + 5 + ci * cw, frontY + 5 + ri * rh, Math.max(3, cw - 5), Math.max(3, rh - 6))
+      }
+    }
+
+    // Roof (top face) + bright rim + parapet shadow line
+    g.fillStyle(p.roof)
+    g.fillRect(x, y, w, depth)
+    g.fillStyle(p.edge)
+    g.fillRect(x, y, w, 2)
+    g.fillStyle(0x000000, 0.2)
+    g.fillRect(x, frontY - 2, w, 2)
+    // rooftop unit (AC / tank)
+    g.fillStyle(p.edge)
+    g.fillRect(x + 6, y + 4, 12, Math.max(3, depth - 8))
+  }
+
+  // Layered canopy + trunk + soft shadow for a rounded, voluminous tree.
+  private drawTree(g: Phaser.GameObjects.Graphics, x: number, y: number, s = 1) {
+    const r = 12 * s
+    g.fillStyle(0x000000, 0.18)
+    g.fillEllipse(x + 4, y + 6, r * 2.3, r * 1.3)
+    g.fillStyle(0x6b4a2b)
+    g.fillRect(x - 2 * s, y - 2 * s, 4 * s, 10 * s)
+    g.fillStyle(0x2e6b32)
+    g.fillCircle(x, y - 6 * s, r)
+    g.fillStyle(0x3c8a42)
+    g.fillCircle(x - 3 * s, y - 9 * s, r * 0.7)
+    g.fillStyle(0x5bb061)
+    g.fillCircle(x - 5 * s, y - 11 * s, r * 0.42) // top-left highlight
+  }
+
+  // Camera-fixed cinematic vignette to frame the scene and add depth.
+  private addVignette() {
+    const v = this.add.graphics()
+    v.setScrollFactor(0)
+    v.setDepth(50)
+    const B = 0x000000
+    // top (strongest — frames the horizon)
+    v.fillGradientStyle(B, B, B, B, 0.5, 0.5, 0, 0)
+    v.fillRect(0, 0, GAME_WIDTH, 90)
+    // bottom (kept short/light so it never dims the car at ~83% height)
+    v.fillGradientStyle(B, B, B, B, 0, 0, 0.4, 0.4)
+    v.fillRect(0, GAME_HEIGHT - 45, GAME_WIDTH, 45)
+    // sides
+    v.fillGradientStyle(B, B, B, B, 0.4, 0, 0.4, 0)
+    v.fillRect(0, 0, 64, GAME_HEIGHT)
+    v.fillGradientStyle(B, B, B, B, 0, 0.4, 0, 0.4)
+    v.fillRect(GAME_WIDTH - 64, 0, 64, GAME_HEIGHT)
   }
 
   private drawGoalMarker(maneuver: Maneuver) {
@@ -660,23 +863,51 @@ export class ScenarioScene extends Phaser.Scene {
   // ================= Car =================
 
   private createCar(): Phaser.GameObjects.Container {
-    const g = this.add.graphics()
-    g.fillStyle(0x1565c0)
-    g.fillRoundedRect(-16, -26, 32, 52, 6)
-    g.fillStyle(0x90caf9)
-    g.fillRect(-11, -19, 22, 14)
-    g.fillStyle(0x90caf9)
-    g.fillRect(-11, 9, 22, 10)
-    g.fillStyle(0x111111)
-    g.fillRect(-19, -21, 6, 12)
-    g.fillRect(13, -21, 6, 12)
-    g.fillRect(-19, 11, 6, 12)
-    g.fillRect(13, 11, 6, 12)
-    g.fillStyle(0xfff176)
-    g.fillRect(-12, -25, 9, 5)
-    g.fillRect(3, -25, 9, 5)
+    // Soft drop shadow (behind everything) lifts the car off the road.
+    const shadow = this.add.graphics()
+    shadow.fillStyle(0x000000, 0.28)
+    shadow.fillEllipse(3, 5, 42, 60)
 
-    const c = this.add.container(0, 0, [g])
+    const g = this.add.graphics()
+    // wheels first (under the body)
+    g.fillStyle(0x0a0a0a)
+    g.fillRoundedRect(-20, -20, 6, 13, 2)
+    g.fillRoundedRect(14, -20, 6, 13, 2)
+    g.fillRoundedRect(-20, 7, 6, 13, 2)
+    g.fillRoundedRect(14, 7, 6, 13, 2)
+    // body: dark base + lighter inset for a rounded sheen
+    g.fillStyle(0x0d47a1)
+    g.fillRoundedRect(-16, -26, 32, 52, 7)
+    g.fillStyle(0x1976d2)
+    g.fillRoundedRect(-14, -24, 28, 48, 6)
+    g.fillStyle(0x2196f3)
+    g.fillRoundedRect(-13, -23, 26, 16, 5) // sunlit hood
+    // windshield with reflection streak
+    g.fillStyle(0x0a1722)
+    g.fillRoundedRect(-12, -19, 24, 13, 3)
+    g.fillStyle(0x9fd3ff, 0.85)
+    g.fillRoundedRect(-11, -18, 22, 11, 3)
+    g.fillStyle(0xffffff, 0.4)
+    g.fillTriangle(-9, -17, -1, -17, -9, -8)
+    // rear window
+    g.fillStyle(0x9fd3ff, 0.75)
+    g.fillRoundedRect(-11, 8, 22, 10, 3)
+    // roof seam highlight
+    g.fillStyle(0xffffff, 0.12)
+    g.fillRect(-12, -5, 24, 2)
+    // headlights / taillights
+    g.fillStyle(0xfff59d)
+    g.fillRoundedRect(-13, -26, 9, 5, 2)
+    g.fillRoundedRect(4, -26, 9, 5, 2)
+    g.fillStyle(0xff5252)
+    g.fillRoundedRect(-13, 21, 9, 5, 2)
+    g.fillRoundedRect(4, 21, 9, 5, 2)
+    // side mirrors
+    g.fillStyle(0x0d47a1)
+    g.fillRect(-19, -9, 4, 4)
+    g.fillRect(15, -9, 4, 4)
+
+    const c = this.add.container(0, 0, [shadow, g])
     c.setDepth(10)
     return c
   }
@@ -704,20 +935,39 @@ export class ScenarioScene extends Phaser.Scene {
     this.lightContainer?.destroy()
     this.lightContainer = null
     this.lightLamp = null
+    this.lightHousing = null
   }
 
   private drawLight(state: TrafficLightState) {
     this.clearLight()
+
+    // Ground shadow cast by the whole assembly (light from upper-left).
+    const shadow = this.add.graphics()
+    shadow.fillStyle(0x000000, 0.22)
+    shadow.fillEllipse(10, 40, 54, 22)
+
+    // Mounting pole rising from a base on the shoulder up to the signal head.
+    const pole = this.add.graphics()
+    pole.fillStyle(0x3a3f44)
+    pole.fillRect(16, -36, 6, 78)       // vertical pole (to the right of the head)
+    pole.fillStyle(0x4a5056)
+    pole.fillRect(16, -36, 2, 78)       // pole highlight
+    pole.fillStyle(0x2e3338)
+    pole.fillRect(-2, -34, 20, 6)       // horizontal arm to the head
+    pole.fillStyle(0x23272b)
+    pole.fillEllipse(19, 44, 22, 9)     // base plate
+
     const g = this.add.graphics()
     g.fillStyle(0x222222)
     g.fillRoundedRect(-13, -40, 26, 74, 4)
     const lamp = this.add.graphics()
     this.renderLamp(g, lamp, state)
 
-    const c = this.add.container(LIGHT_X, LIGHT_Y, [g, lamp])
+    const c = this.add.container(LIGHT_X, LIGHT_Y, [shadow, pole, g, lamp])
     c.setDepth(6)
     this.lightContainer = c
     this.lightLamp = lamp
+    this.lightHousing = g
 
     if (state.type === 'flashing') {
       let on = true
@@ -738,8 +988,12 @@ export class ScenarioScene extends Phaser.Scene {
     state: TrafficLightState
   ) {
     housing.clear()
-    housing.fillStyle(0x222222)
+    housing.fillStyle(0x1c1c1c)
     housing.fillRoundedRect(-13, -40, 26, 74, 4)
+    housing.fillStyle(0x2e2e2e) // left highlight (light from upper-left)
+    housing.fillRoundedRect(-13, -40, 7, 74, 4)
+    housing.fillStyle(0x121212) // right shade
+    housing.fillRoundedRect(8, -40, 5, 74, 4)
     lamp.clear()
     lamp.setVisible(true)
 
@@ -748,12 +1002,15 @@ export class ScenarioScene extends Phaser.Scene {
       const dim: Record<string, number> = { red: 0x551111, yellow: 0x554400, green: 0x114422 }
       const yo: Record<string, number> = { red: -24, yellow: -2, green: 20 }
       ;(['red', 'yellow', 'green'] as const).forEach((col) => {
+        // visor overhang above each lamp
+        housing.fillStyle(0x000000)
+        housing.fillRect(-11, yo[col] - 13, 22, 4)
         housing.fillStyle(dim[col])
         housing.fillCircle(0, yo[col], 9)
       })
       lamp.fillStyle(colors[state.color])
       lamp.fillCircle(0, yo[state.color], 9)
-      lamp.fillStyle(colors[state.color], 0.3)
+      lamp.fillStyle(colors[state.color], 0.35) // bloom
       lamp.fillCircle(0, yo[state.color], 15)
     } else if (state.type === 'arrow') {
       const mainDim = state.mainColor === 'red' ? 0x551111 : state.mainColor === 'yellow' ? 0x554400 : 0x114422
@@ -771,12 +1028,14 @@ export class ScenarioScene extends Phaser.Scene {
     } else if (state.type === 'flashing') {
       const lit = state.color === 'red' ? 0xff2222 : 0xffcc00
       const dim = state.color === 'red' ? 0x551111 : 0x554400
+      housing.fillStyle(0x000000) // visor
+      housing.fillRect(-12, -19, 24, 4)
       housing.fillStyle(dim)
       housing.fillCircle(0, -4, 11)
       lamp.fillStyle(lit)
       lamp.fillCircle(0, -4, 11)
-      lamp.fillStyle(lit, 0.3)
-      lamp.fillCircle(0, -4, 17)
+      lamp.fillStyle(lit, 0.35)
+      lamp.fillCircle(0, -4, 18)
     } else {
       const col = state.phase === 'stop' ? 0xff2222 : 0x00cc44
       housing.fillStyle(0x111111)
@@ -810,11 +1069,10 @@ export class ScenarioScene extends Phaser.Scene {
     this.currentLight = state
     if (state.type === 'flashing') {
       this.drawLight(state)
-    } else if (this.lightContainer && this.lightLamp) {
+    } else if (this.lightHousing && this.lightLamp) {
       this.flashTimer?.destroy()
       this.flashTimer = null
-      const housing = this.lightContainer.getAt(0) as Phaser.GameObjects.Graphics
-      this.renderLamp(housing, this.lightLamp, state)
+      this.renderLamp(this.lightHousing, this.lightLamp, state)
     } else {
       this.drawLight(state)
     }
@@ -839,27 +1097,53 @@ export class ScenarioScene extends Phaser.Scene {
   }
 
   private createPedestrian(color = 0xffd54f): Phaser.GameObjects.Container {
+    const shadow = this.add.graphics()
+    shadow.fillStyle(0x000000, 0.25)
+    shadow.fillEllipse(2, 16, 20, 8)
     const g = this.add.graphics()
-    g.fillStyle(color)
+    g.fillStyle(0xf1c27d) // head (skin)
     g.fillCircle(0, -14, 6)
-    g.fillRect(-5, -8, 10, 13)
-    g.fillRect(-6, 5, 4, 11)
-    g.fillRect(2, 5, 4, 11)
-    return this.add.container(0, 0, [g])
+    g.fillStyle(0x000000, 0.18) // hair shade
+    g.fillRect(-6, -19, 12, 4)
+    g.fillStyle(color) // torso
+    g.fillRoundedRect(-5, -8, 10, 14, 3)
+    g.fillStyle(0x000000, 0.12)
+    g.fillRect(-5, 2, 10, 4)
+    g.fillStyle(0x37474f) // legs
+    g.fillRect(-6, 5, 4, 12)
+    g.fillRect(2, 5, 4, 12)
+    return this.add.container(0, 0, [shadow, g])
   }
 
   private createNPCCar(color = 0xcc2222): Phaser.GameObjects.Container {
+    const shadow = this.add.graphics()
+    shadow.fillStyle(0x000000, 0.26)
+    shadow.fillEllipse(3, 5, 38, 56)
     const g = this.add.graphics()
+    // wheels
+    g.fillStyle(0x0a0a0a)
+    g.fillRoundedRect(-19, -18, 5, 12, 2)
+    g.fillRoundedRect(14, -18, 5, 12, 2)
+    g.fillRoundedRect(-19, 8, 5, 12, 2)
+    g.fillRoundedRect(14, 8, 5, 12, 2)
+    // body two-tone
+    g.fillStyle(Phaser.Display.Color.IntegerToColor(color).darken(22).color)
+    g.fillRoundedRect(-15, -24, 30, 48, 6)
     g.fillStyle(color)
-    g.fillRoundedRect(-15, -24, 30, 48, 5)
-    g.fillStyle(0x90caf9)
-    g.fillRect(-10, -16, 20, 11)
-    g.fillStyle(0x111111)
-    g.fillRect(-18, -18, 5, 11)
-    g.fillRect(13, -18, 5, 11)
-    g.fillRect(-18, 10, 5, 11)
-    g.fillRect(13, 10, 5, 11)
-    return this.add.container(0, 0, [g])
+    g.fillRoundedRect(-13, -22, 26, 44, 5)
+    // windows
+    g.fillStyle(0x9fd3ff, 0.85)
+    g.fillRoundedRect(-10, -16, 20, 11, 3)
+    g.fillStyle(0x9fd3ff, 0.7)
+    g.fillRoundedRect(-10, 7, 20, 9, 3)
+    // lights
+    g.fillStyle(0xfff59d)
+    g.fillRoundedRect(-12, -24, 8, 4, 2)
+    g.fillRoundedRect(4, -24, 8, 4, 2)
+    g.fillStyle(0xff5252)
+    g.fillRoundedRect(-12, 20, 8, 4, 2)
+    g.fillRoundedRect(4, 20, 8, 4, 2)
+    return this.add.container(0, 0, [shadow, g])
   }
 
   // ================= Scenario lifecycle =================
