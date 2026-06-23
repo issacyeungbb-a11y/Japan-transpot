@@ -1038,6 +1038,13 @@ export class ScenarioScene extends Phaser.Scene {
     const done = this.reachedGoal(roadType)
     if (done) {
       if (ev.allowedManeuvers && !ev.allowedManeuvers.includes(done)) return this.resolve('wrong_way')
+      // You can't finish a level while still speeding. On short runways (e.g. the
+      // highway) the grace window may not elapse before the goal, so enforce the
+      // limit at the finish line too — otherwise flooring it past the limit could
+      // complete the run uncaught.
+      if (this.speedLimit > 0 && this.speed * KMH_PER_PX > this.speedLimit + SPEED_TOLERANCE) {
+        return this.resolve('speeding')
+      }
       return this.resolve('success')
     }
 
