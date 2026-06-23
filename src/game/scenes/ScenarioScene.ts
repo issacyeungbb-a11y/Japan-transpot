@@ -37,6 +37,12 @@ const NB_LANE_X = CX - 20 // 380  (city roads)
 const HIGHWAY_W      = 160  // total road width
 const HIGHWAY_NB_X   = CX - 40 // 360 — player's lane centre on highway
 
+// Bus-lane scenario: a wider same-direction road with a blue 「バス専用」 lane on
+// the LEFT and a normal lane on the RIGHT. The player must keep to the right.
+const BUS_ROAD_W   = 120
+const BUS_LANE_X   = CX - 30 // 370 — blue bus-only lane centre (left)
+const BUS_NORMAL_X = CX + 30 // 430 — normal lane centre (player keeps right)
+
 // Stop line is south of the pedestrian crossing, south of the intersection.
 const STOP_LINE_Y = CY + INT / 2 + 50 // 610
 
@@ -103,6 +109,9 @@ export class ScenarioScene extends Phaser.Scene {
   private tollGate: Phaser.GameObjects.Container | null = null
   private tollBar: Phaser.GameObjects.Rectangle | null = null
   private rainLayer: Phaser.GameObjects.Container | null = null
+  private busSprite: Phaser.GameObjects.Container | null = null
+  private busLabels: Phaser.GameObjects.Text[] = []
+  private busY = 0
 
   // Fixed (camera-locked) speedometer + speed-limit sign HUD.
   private speedReadout!: Phaser.GameObjects.Text
@@ -127,6 +136,7 @@ export class ScenarioScene extends Phaser.Scene {
   private raining = false
   private hasTollGate = false
   private tollPassed = false
+  private hasBusLane = false
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
   private keyW?: Phaser.Input.Keyboard.Key
@@ -181,6 +191,9 @@ export class ScenarioScene extends Phaser.Scene {
   private buildRoad(roadType: RoadType, maneuver: Maneuver) {
     const g = this.roadGraphics
     g.clear()
+    // Remove any bus-lane markings/sprite left over from a previous scenario;
+    // drawBusLaneRoad re-creates them when this scenario uses a bus lane.
+    this.clearBusLane()
 
     // Grass background (full world height)
     g.fillStyle(GRASS_COLOR)
@@ -189,7 +202,8 @@ export class ScenarioScene extends Phaser.Scene {
     if (roadType === 'highway') {
       this.drawHighwayRoad(g)
     } else if (roadType === 'straight') {
-      this.drawStraightRoad(g)
+      if (this.hasBusLane) this.drawBusLaneRoad(g)
+      else this.drawStraightRoad(g)
     } else {
       this.drawCrossRoad(g, roadType)
     }
@@ -255,6 +269,77 @@ export class ScenarioScene extends Phaser.Scene {
     // Stop line south of the light
     g.fillStyle(ROAD_LINE)
     g.fillRect(CX - ROAD_W / 2, STOP_LINE_Y, ROAD_W, 4)
+  }
+
+  private drawBusLaneRoad(g: Phaser.GameObjects.Graphics) {
+    const hw = BUS_ROAD_W / 2 // 60
+
+    // Sidewalks
+    g.fillStyle(SIDEWALK_COLOR)
+    g.fillRect(CX - hw - 8, 0, BUS_ROAD_W + 16, WORLD_HEIGHT)
+
+    // Asphalt
+    g.fillStyle(ROAD_COLOR)
+    g.fillRect(CX - hw, 0, BUS_ROAD_W, WORLD_HEIGHT)
+
+    // Blue 「バス専用」 lane on the LEFT (x = CX-hw .. CX)
+    g.fillStyle(0x15518a, 0.85)
+    g.fillRect(CX - hw, 0, hw, WORLD_HEIGHT)
+
+    // Lane divider (dashed white down the middle) + outer edge lines
+    g.fillStyle(ROAD_LINE)
+    for (let y = 20; y < WORLD_HEIGHT; y += 36) g.fillRect(CX - 2, y, 4, 20)
+    g.fillRect(CX - hw, 0, 3, WORLD_HEIGHT)
+    g.fillRect(CX + hw - 3, 0, 3, WORLD_HEIGHT)
+
+    // Repeated 「バス専用」 markings painted in the blue lane.
+    this.clearBusLabels()
+    for (let y = 180; y < WORLD_HEIGHT; y += 240) {
+      const label = this.add
+        .text(BUS_LANE_X, y, 'バス\n専用', {
+          fontFamily: 'sans-serif', fontSize: '18px', fontStyle: 'bold',
+          color: '#ffffff', align: 'center',
+        })
+        .setOrigin(0.5)
+        .setDepth(2)
+      this.busLabels.push(label)
+    }
+  }
+
+  private clearBusLabels() {
+    this.busLabels.forEach((l) => l.destroy())
+    this.busLabels = []
+  }
+
+  private clearBusLane() {
+    this.clearBusLabels()
+    this.busSprite?.destroy()
+    this.busSprite = null
+  }
+
+  // A long city bus that crawls up the bus-only lane.
+  private createBus(): Phaser.GameObjects.Container {
+    const g = this.add.graphics()
+    g.fillStyle(0x2e7d32)
+    g.fillRoundedRect(-17, -38, 34, 76, 6)
+    g.fillStyle(0xcfe8d0)
+    g.fillRect(-13, -30, 26, 16)  // windscreen band
+    g.fillRect(-13, -8, 26, 14)
+    g.fillRect(-13, 12, 26, 14)
+    g.fillStyle(0xffd54f)
+    g.fillRect(-13, 30, 8, 5)
+    g.fillRect(5, 30, 8, 5)
+    const c = this.add.container(BUS_LANE_X, 0, [g])
+    c.setDepth(8)
+    return c
+  }
+
+  private updateBus(dt: number) {
+    if (!this.busSprite) return
+    // Crawls north (up); wraps back to the bottom of the view.
+    this.busY -= 60 * dt
+    if (this.busY < -80) this.busY = SPAWN_Y - 40
+    this.busSprite.y = this.busY
   }
 
   private drawCrossRoad(g: Phaser.GameObjects.Graphics, roadType: RoadType) {
@@ -547,11 +632,17 @@ export class ScenarioScene extends Phaser.Scene {
     return c
   }
 
+  // Northbound lane centre the player spawns in, depending on the road.
+  private spawnLaneX(roadType: RoadType): number {
+    if (roadType === 'highway') return HIGHWAY_NB_X
+    if (this.hasBusLane) return BUS_NORMAL_X
+    return NB_LANE_X
+  }
+
   private resetCarToSpawn(roadType: RoadType = 'cross') {
     this.speed = 0
     this.heading = 0
-    const spawnX = roadType === 'highway' ? HIGHWAY_NB_X : NB_LANE_X
-    this.car.setPosition(spawnX, SPAWN_Y)
+    this.car.setPosition(this.spawnLaneX(roadType), SPAWN_Y)
     this.car.setRotation(0)
   }
 
@@ -735,6 +826,7 @@ export class ScenarioScene extends Phaser.Scene {
     this.raining = scenario.weather === 'rain'
     this.hasTollGate = scenario.tollGate === true
     this.tollPassed = false
+    this.hasBusLane = scenario.busLane === true
 
     this.tweens.killTweensOf(this.car)
 
@@ -745,7 +837,7 @@ export class ScenarioScene extends Phaser.Scene {
     // With followOffset.y=150, at spawn scrollY = 940-150-225=565 → clamped to 550
     // (world bottom). Camera shows world y=[550,1000], light at y=580 is visible.
     this.cameras.main.followOffset.y = 150
-    const spawnX = roadType === 'highway' ? HIGHWAY_NB_X : NB_LANE_X
+    const spawnX = this.spawnLaneX(roadType)
     this.cameras.main.setScroll(spawnX - GAME_WIDTH / 2, WORLD_HEIGHT - GAME_HEIGHT)
 
     this.clearLight()
@@ -760,6 +852,16 @@ export class ScenarioScene extends Phaser.Scene {
 
     this.clearRain()
     if (this.raining) this.buildRain()
+
+    // The bus lane road + 「バス専用」 labels are drawn by buildRoad above; here we
+    // add the moving bus that occupies that lane.
+    this.busSprite?.destroy()
+    this.busSprite = null
+    if (this.hasBusLane) {
+      this.busSprite = this.createBus()
+      this.busY = STOP_LINE_Y - 60
+      this.busSprite.y = this.busY
+    }
 
     this.applySpeedLimitSign()
     this.updateSpeedHud()
@@ -794,6 +896,7 @@ export class ScenarioScene extends Phaser.Scene {
     this.clearStopSign()
     this.clearTollGate()
     this.clearRain()
+    this.clearBusLane()
     this.clearNPCs()
     this.resetCarToSpawn()
   }
@@ -810,6 +913,7 @@ export class ScenarioScene extends Phaser.Scene {
     this.updateNPCs(elapsed)
     this.updateSpeedHud()
     this.updateRain(dt)
+    this.updateBus(dt)
 
     if (this.resolved) return
     this.evaluate(elapsed, dt)
@@ -900,6 +1004,11 @@ export class ScenarioScene extends Phaser.Scene {
       this.tollBar?.setVisible(false) // bar lifts / opens
     }
 
+    // 0c) Bus-only lane — entering the blue lane during restricted hours fails.
+    if (this.hasBusLane && elapsed > 250 && this.car.x < CX - 4) {
+      return this.resolve('bus_lane')
+    }
+
     // 1) Collision
     for (const { def, obj } of this.npcs) {
       if (!obj.visible) continue
@@ -953,6 +1062,9 @@ export class ScenarioScene extends Phaser.Scene {
   private isOffRoad(roadType: RoadType): boolean {
     if (roadType === 'highway') {
       return Math.abs(this.car.x - CX) > HIGHWAY_W / 2 + 6
+    }
+    if (roadType === 'straight' && this.hasBusLane) {
+      return Math.abs(this.car.x - CX) > BUS_ROAD_W / 2 + 6
     }
 
     const onNS = Math.abs(this.car.x - CX) <= ROAD_W / 2 + 6

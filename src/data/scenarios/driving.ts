@@ -346,10 +346,11 @@ export const drivingScenarios: Scenario[] = [
     roadType: 'straight',
     modes: ['normal', 'challenge'],
     title: { 'zh-TW': '巴士專用線——睇時段', ja: 'バス専用レーン——時間帯' },
-    instruction: { 'zh-TW': '直行（避開時段內嘅巴士專用線）', ja: '直進（時間帯のバス専用レーンを避ける）' },
+    instruction: { 'zh-TW': '直行（靠右行，唔好入藍色巴士專用線）', ja: '直進（右側を走行・青いバス専用レーンに入らない）' },
     difficulty: 3,
     maneuver: 'straight',
     speedLimit: 50,
+    busLane: true,
     light: null,
     evaluation: {},
     feedback: {

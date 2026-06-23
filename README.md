@@ -43,6 +43,7 @@ Realism features:
 - Speed scale tuned so a natural cruise reads ~50 km/h (the common Okinawa local limit).
 - **Rain** dims the screen and makes the road slippery: braking distance grows and grip drops, so you must brake earlier.
 - **ETC toll gate** must be cleared at ETC crawl speed (≤25 km/h) or you hit the bar — then accelerate and merge.
+- **Bus-only lane** is drawn as a blue 「バス専用」 lane with a moving bus; driving in it during restricted hours fails the run, so you learn to keep right.
 - **Weak-area analysis** on the results screen tallies your mistakes by type and gives targeted coaching for next time.
 
 Note: No railroad crossing (踏切) scenarios — Okinawa's Yui Rail monorail runs elevated and has no at-grade crossings.

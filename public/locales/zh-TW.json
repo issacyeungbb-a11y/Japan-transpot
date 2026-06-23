@@ -33,6 +33,7 @@
     "wrong_way": "駛錯方向",
     "off_road": "偏離車道",
     "speeding": "超速駕駛",
+    "bus_lane": "駛入巴士專用線",
     "timeout": "太耐都未完成"
   },
   "feedback": {

@@ -108,6 +108,9 @@ export interface Scenario {
   // Draws an ETC toll gate across an expressway approach. The bar only clears
   // if you slow to ETC speed (≤25 km/h); arriving too fast hits the barrier.
   tollGate?: boolean
+  // Renders a blue 「バス専用」 lane on the left with a bus; driving in it during
+  // the restricted hours is a violation. Player must keep to the right lane.
+  busLane?: boolean
   evaluation: ScenarioEvaluation
   feedback: FeedbackContent
 }
@@ -120,6 +123,7 @@ export type OutcomeReason =
   | 'wrong_way' // took an illegal direction
   | 'off_road' // left the roadway
   | 'speeding' // exceeded the posted speed limit for too long
+  | 'bus_lane' // drove in a bus-only lane during restricted hours
   | 'timeout' // never completed the maneuver
 
 export interface DrivingOutcome {

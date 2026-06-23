@@ -33,6 +33,7 @@
     "wrong_way": "進行方向が違います",
     "off_road": "車線を外れました",
     "speeding": "速度超過です",
+    "bus_lane": "バス専用レーンに進入",
     "timeout": "時間内に完了できませんでした"
   },
   "feedback": {
