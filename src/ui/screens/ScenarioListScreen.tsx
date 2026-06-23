@@ -9,6 +9,7 @@ const CATEGORY_ICON: Record<Scenario['category'], string> = {
   pedestrian: '🚶',
   priority:   '🛣️',
   oneway:     '↕️',
+  speed:      '🚸',
 }
 
 const MODE_META: Record<GameMode, { icon: string; label: Record<string, string>; color: string }> = {

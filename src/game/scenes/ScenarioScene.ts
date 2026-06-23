@@ -62,6 +62,15 @@ const COAST_FRICTION = 20
 const TURN_RATE = 2.5  // rad/s at full steering
 const STOP_EPS = 8
 
+// World px → km/h so the speedometer reads like a real car.
+// Chosen so the natural cruise (90 px/s) shows 50 km/h — the common Okinawa
+// local limit — and full throttle tops out around 122 km/h.
+const KMH_PER_PX = 50 / CRUISE_SPEED
+// How far over the posted limit (km/h) is tolerated, and for how long (ms),
+// before it counts as a speeding violation. A short overshoot is forgiven.
+const SPEED_TOLERANCE = 20
+const SPEED_GRACE_MS = 1100
+
 // ---- Collision radii ----
 const CAR_R = 19
 const NPC_CAR_R = 18
@@ -82,6 +91,12 @@ export class ScenarioScene extends Phaser.Scene {
   private lightLamp: Phaser.GameObjects.Graphics | null = null
   private npcs: NpcSprite[] = []
   private flashTimer: Phaser.Time.TimerEvent | null = null
+  private stopSign: Phaser.GameObjects.Container | null = null
+
+  // Fixed (camera-locked) speedometer + speed-limit sign HUD.
+  private speedReadout!: Phaser.GameObjects.Text
+  private limitSign!: Phaser.GameObjects.Container
+  private limitSignNumber!: Phaser.GameObjects.Text
 
   private scenario: Scenario | null = null
   private phase: Phase = 'idle'
@@ -96,6 +111,8 @@ export class ScenarioScene extends Phaser.Scene {
   private hasStopped = false
   private crossedLine = false
   private resolved = false
+  private speedLimit = 0      // km/h; 0 = no posted limit
+  private overspeedMs = 0     // accumulated time spent over the limit
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
   private keyW?: Phaser.Input.Keyboard.Key
@@ -116,6 +133,8 @@ export class ScenarioScene extends Phaser.Scene {
 
     this.car = this.createCar()
     this.resetCarToSpawn()
+
+    this.buildSpeedHud()
 
     // Phaser formula: scrollY = car.y - followOffset.y - height/2
     // So positive followOffset.y shifts car DOWN the canvas (shows more road AHEAD).
@@ -330,6 +349,92 @@ export class ScenarioScene extends Phaser.Scene {
     g.fillRect(x + 6, y - 4, 12, 8)
   }
 
+  // ================= Speed HUD =================
+
+  // A camera-locked speedometer (bottom-left) and a Japanese round speed-limit
+  // sign (top-right). Built once; values updated each frame.
+  private buildSpeedHud() {
+    // Speedometer: big number + km/h unit on a dark pill.
+    const pill = this.add.graphics()
+    pill.fillStyle(0x0d1b2a, 0.72)
+    pill.fillRoundedRect(10, GAME_HEIGHT - 56, 116, 44, 10)
+    pill.lineStyle(2, 0x1a4e8c, 0.8)
+    pill.strokeRoundedRect(10, GAME_HEIGHT - 56, 116, 44, 10)
+    pill.setScrollFactor(0).setDepth(30)
+
+    this.speedReadout = this.add
+      .text(96, GAME_HEIGHT - 50, '0', { fontFamily: 'monospace', fontSize: '30px', color: '#ffffff' })
+      .setOrigin(1, 0)
+      .setScrollFactor(0)
+      .setDepth(31)
+    this.add
+      .text(100, GAME_HEIGHT - 30, 'km/h', { fontFamily: 'monospace', fontSize: '12px', color: '#9fb3c8' })
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(31)
+
+    // Speed-limit sign: white disc, red ring, black number (JP regulatory sign).
+    const disc = this.add.graphics()
+    disc.fillStyle(0xd32f2f)
+    disc.fillCircle(0, 0, 24)
+    disc.fillStyle(0xffffff)
+    disc.fillCircle(0, 0, 18)
+    this.limitSignNumber = this.add
+      .text(0, 0, '50', { fontFamily: 'Arial, sans-serif', fontSize: '20px', fontStyle: 'bold', color: '#111111' })
+      .setOrigin(0.5, 0.5)
+    this.limitSign = this.add
+      .container(GAME_WIDTH - 36, 36, [disc, this.limitSignNumber])
+      .setScrollFactor(0)
+      .setDepth(31)
+      .setVisible(false)
+  }
+
+  private updateSpeedHud() {
+    const kmh = Math.round(this.speed * KMH_PER_PX)
+    this.speedReadout.setText(String(kmh))
+    // Turn the readout amber/red as it approaches and exceeds the limit.
+    if (this.speedLimit > 0 && kmh > this.speedLimit + SPEED_TOLERANCE) {
+      this.speedReadout.setColor('#ff4d4d')
+    } else if (this.speedLimit > 0 && kmh > this.speedLimit) {
+      this.speedReadout.setColor('#ffcc00')
+    } else {
+      this.speedReadout.setColor('#ffffff')
+    }
+  }
+
+  private applySpeedLimitSign() {
+    if (this.speedLimit > 0) {
+      this.limitSignNumber.setText(String(this.speedLimit))
+      this.limitSign.setVisible(true)
+    } else {
+      this.limitSign.setVisible(false)
+    }
+  }
+
+  // ================= 止まれ stop sign =================
+
+  private clearStopSign() {
+    this.stopSign?.destroy()
+    this.stopSign = null
+  }
+
+  // Red inverted triangle with white 「止まれ」, planted beside the stop line
+  // on the player's approach — the Japanese mandatory-stop sign.
+  private drawStopSign() {
+    this.clearStopSign()
+    const g = this.add.graphics()
+    g.fillStyle(0xffffff)
+    g.fillTriangle(-24, -16, 24, -16, 0, 24)
+    g.fillStyle(0xd32f2f)
+    g.fillTriangle(-19, -13, 19, -13, 0, 18)
+    const label = this.add
+      .text(0, -2, '止まれ', { fontFamily: 'sans-serif', fontSize: '10px', fontStyle: 'bold', color: '#ffffff' })
+      .setOrigin(0.5, 0.5)
+    const c = this.add.container(LIGHT_X, STOP_LINE_Y - 24, [g, label])
+    c.setDepth(7)
+    this.stopSign = c
+  }
+
   // ================= Car =================
 
   private createCar(): Phaser.GameObjects.Container {
@@ -537,6 +642,8 @@ export class ScenarioScene extends Phaser.Scene {
     this.resolved = false
     this.hasStopped = false
     this.crossedLine = false
+    this.speedLimit = scenario.speedLimit ?? 0
+    this.overspeedMs = 0
 
     this.tweens.killTweensOf(this.car)
 
@@ -553,6 +660,12 @@ export class ScenarioScene extends Phaser.Scene {
     this.clearLight()
     this.currentLight = scenario.light
     if (scenario.light) this.drawLight(scenario.light)
+
+    this.clearStopSign()
+    if (scenario.stopSign) this.drawStopSign()
+
+    this.applySpeedLimitSign()
+    this.updateSpeedHud()
 
     this.spawnNPCs(scenario)
 
@@ -581,6 +694,7 @@ export class ScenarioScene extends Phaser.Scene {
     this.phase = 'idle'
     this.tweens.killTweensOf(this.car)
     this.clearLight()
+    this.clearStopSign()
     this.clearNPCs()
     this.resetCarToSpawn()
   }
@@ -595,9 +709,10 @@ export class ScenarioScene extends Phaser.Scene {
     this.updateCar(dt)
     this.updateCamera(dt)
     this.updateNPCs(elapsed)
+    this.updateSpeedHud()
 
     if (this.resolved) return
-    this.evaluate(elapsed)
+    this.evaluate(elapsed, dt)
   }
 
   // Show more road ahead the faster the car goes (positive followOffset.y = more ahead).
@@ -655,10 +770,21 @@ export class ScenarioScene extends Phaser.Scene {
     })
   }
 
-  private evaluate(elapsed: number) {
+  private evaluate(elapsed: number, dt: number) {
     const ev = this.scenario!.evaluation
     const maneuver = this.scenario!.maneuver
     const roadType: RoadType = this.scenario!.roadType ?? 'cross'
+
+    // 0) Speeding — sustained driving over the posted limit fails the run.
+    if (this.speedLimit > 0) {
+      const kmh = this.speed * KMH_PER_PX
+      if (kmh > this.speedLimit + SPEED_TOLERANCE) {
+        this.overspeedMs += dt * 1000
+        if (this.overspeedMs > SPEED_GRACE_MS) return this.resolve('speeding')
+      } else {
+        this.overspeedMs = Math.max(0, this.overspeedMs - dt * 1000)
+      }
+    }
 
     // 1) Collision
     for (const { def, obj } of this.npcs) {

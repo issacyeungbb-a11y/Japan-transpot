@@ -84,7 +84,7 @@ export type GameMode = 'study' | 'normal' | 'challenge'
 
 export interface Scenario {
   id: string
-  category: 'standard' | 'arrow' | 'flashing' | 'pedestrian' | 'priority' | 'oneway'
+  category: 'standard' | 'arrow' | 'flashing' | 'pedestrian' | 'priority' | 'oneway' | 'speed'
   title: BilingualText
   // Short goal shown to the player before the car starts moving.
   instruction: BilingualText
@@ -97,6 +97,11 @@ export interface Scenario {
   light: TrafficLightState | null
   lightChanges?: LightChange[]
   npcs?: ScenarioNPC[]
+  // Posted speed limit in km/h. Shows a Japanese round speed-limit sign and
+  // enforces overspeed. Okinawa: local 40–60, Okinawa Expressway 80.
+  speedLimit?: number
+  // Draws a 止まれ (stop) sign on the approach — full stop is mandatory.
+  stopSign?: boolean
   evaluation: ScenarioEvaluation
   feedback: FeedbackContent
 }
@@ -108,6 +113,7 @@ export type OutcomeReason =
   | 'collision' // hit a vehicle or pedestrian
   | 'wrong_way' // took an illegal direction
   | 'off_road' // left the roadway
+  | 'speeding' // exceeded the posted speed limit for too long
   | 'timeout' // never completed the maneuver
 
 export interface DrivingOutcome {
