@@ -23,7 +23,7 @@ npm run dev
 npm run build
 ```
 
-## Scenarios (18 total)
+## Scenarios (20 total)
 
 | Theme | Examples | Law Reference |
 |----------|-------|---------------|
@@ -35,11 +35,15 @@ npm run build
 | Speed limits | Okinawa local 40–50, Okinawa Expressway 80 | 道路交通法第22条 |
 | Priority / narrow roads | yield to priority road, 狭い道での離合 | 道路交通法第36条・第18条 |
 | One-way / bus lane | 一方通行, Naha 国道58号 バス専用レーン | 道路交通法第8条・第20条の2 |
+| Weather / expressway | 雨天の滑りやすい路面, ETC料金所＋合流 | 道路交通法第70条・第75条の4 |
 
 Realism features:
 - **Live km/h speedometer** (bottom-left) and **Japanese round speed-limit sign** (top-right).
 - **Speeding fails the run** if you stay over the posted limit too long — trains real speed discipline.
 - Speed scale tuned so a natural cruise reads ~50 km/h (the common Okinawa local limit).
+- **Rain** dims the screen and makes the road slippery: braking distance grows and grip drops, so you must brake earlier.
+- **ETC toll gate** must be cleared at ETC crawl speed (≤25 km/h) or you hit the bar — then accelerate and merge.
+- **Weak-area analysis** on the results screen tallies your mistakes by type and gives targeted coaching for next time.
 
 Note: No railroad crossing (踏切) scenarios — Okinawa's Yui Rail monorail runs elevated and has no at-grade crossings.
 

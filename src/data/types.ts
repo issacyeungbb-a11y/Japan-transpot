@@ -102,6 +102,12 @@ export interface Scenario {
   speedLimit?: number
   // Draws a 止まれ (stop) sign on the approach — full stop is mandatory.
   stopSign?: boolean
+  // Weather. 'rain' adds a downpour overlay and a slippery road: braking
+  // distance grows and grip drops, like real wet Okinawa driving.
+  weather?: 'rain'
+  // Draws an ETC toll gate across an expressway approach. The bar only clears
+  // if you slow to ETC speed (≤25 km/h); arriving too fast hits the barrier.
+  tollGate?: boolean
   evaluation: ScenarioEvaluation
   feedback: FeedbackContent
 }

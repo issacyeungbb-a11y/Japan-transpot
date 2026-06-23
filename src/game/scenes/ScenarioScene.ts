@@ -71,6 +71,14 @@ const KMH_PER_PX = 50 / CRUISE_SPEED
 const SPEED_TOLERANCE = 20
 const SPEED_GRACE_MS = 1100
 
+// Wet road: brakes bite less (longer stopping distance) and grip drops.
+const RAIN_BRAKE_FACTOR = 0.55
+const RAIN_TURN_FACTOR = 0.78
+
+// ETC toll gate: line the player must cross at ETC crawl speed or hit the bar.
+const GATE_Y = 770
+const ETC_MAX_KMH = 25
+
 // ---- Collision radii ----
 const CAR_R = 19
 const NPC_CAR_R = 18
@@ -92,6 +100,9 @@ export class ScenarioScene extends Phaser.Scene {
   private npcs: NpcSprite[] = []
   private flashTimer: Phaser.Time.TimerEvent | null = null
   private stopSign: Phaser.GameObjects.Container | null = null
+  private tollGate: Phaser.GameObjects.Container | null = null
+  private tollBar: Phaser.GameObjects.Rectangle | null = null
+  private rainLayer: Phaser.GameObjects.Container | null = null
 
   // Fixed (camera-locked) speedometer + speed-limit sign HUD.
   private speedReadout!: Phaser.GameObjects.Text
@@ -113,6 +124,9 @@ export class ScenarioScene extends Phaser.Scene {
   private resolved = false
   private speedLimit = 0      // km/h; 0 = no posted limit
   private overspeedMs = 0     // accumulated time spent over the limit
+  private raining = false
+  private hasTollGate = false
+  private tollPassed = false
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
   private keyW?: Phaser.Input.Keyboard.Key
@@ -435,6 +449,80 @@ export class ScenarioScene extends Phaser.Scene {
     this.stopSign = c
   }
 
+  // ================= ETC toll gate =================
+
+  private clearTollGate() {
+    this.tollGate?.destroy()
+    this.tollGate = null
+    this.tollBar = null
+  }
+
+  // An expressway toll plaza: a gantry across the road with a green ETC lane
+  // and a drop-bar that the player must approach at crawl speed.
+  private drawTollGate() {
+    this.clearTollGate()
+    const w = HIGHWAY_W / 2 + 14
+    const parts: Phaser.GameObjects.GameObject[] = []
+
+    // Concrete gantry / island band across the carriageway.
+    const band = this.add.rectangle(0, 0, w * 2, 26, 0x2b2b2b).setStrokeStyle(2, 0x111111)
+    parts.push(band)
+
+    // Green ETC lane marker over the player's lane (x = HIGHWAY_NB_X relative).
+    const etcX = HIGHWAY_NB_X - CX
+    const etcPad = this.add.rectangle(etcX, 0, 44, 26, 0x1b5e20)
+    const etcText = this.add
+      .text(etcX, 0, 'ETC', { fontFamily: 'Arial', fontSize: '12px', fontStyle: 'bold', color: '#9cffb0' })
+      .setOrigin(0.5)
+    parts.push(etcPad, etcText)
+
+    // Drop-bar over the ETC lane (raised look = thin bar). Kept as a field so we
+    // can flick it up when the player clears the gate slowly enough.
+    const bar = this.add.rectangle(etcX, 16, 40, 6, 0xffd54f).setStrokeStyle(1, 0x7a5b00)
+    this.tollBar = bar
+    parts.push(bar)
+
+    const c = this.add.container(CX, GATE_Y, parts)
+    c.setDepth(7)
+    this.tollGate = c
+  }
+
+  // ================= Rain =================
+
+  private clearRain() {
+    this.rainLayer?.destroy()
+    this.rainLayer = null
+  }
+
+  // A camera-locked downpour: a dim tint plus drifting rain streaks.
+  private buildRain() {
+    this.clearRain()
+    const tint = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x14233a, 0.32)
+    const streaks: Phaser.GameObjects.GameObject[] = [tint]
+    for (let i = 0; i < 90; i++) {
+      const x = Phaser.Math.Between(0, GAME_WIDTH)
+      const y = Phaser.Math.Between(0, GAME_HEIGHT)
+      const s = this.add.rectangle(x, y, 2, Phaser.Math.Between(8, 16), 0xbfd4e8, 0.5)
+      streaks.push(s)
+    }
+    this.rainLayer = this.add.container(0, 0, streaks).setScrollFactor(0).setDepth(28)
+  }
+
+  private updateRain(dt: number) {
+    if (!this.rainLayer) return
+    const fall = 900 * dt
+    // Skip the tint (index 0); animate the streaks.
+    const list = this.rainLayer.list
+    for (let i = 1; i < list.length; i++) {
+      const s = list[i] as Phaser.GameObjects.Rectangle
+      s.y += fall
+      if (s.y > GAME_HEIGHT) {
+        s.y = -10
+        s.x = Phaser.Math.Between(0, GAME_WIDTH)
+      }
+    }
+  }
+
   // ================= Car =================
 
   private createCar(): Phaser.GameObjects.Container {
@@ -644,6 +732,9 @@ export class ScenarioScene extends Phaser.Scene {
     this.crossedLine = false
     this.speedLimit = scenario.speedLimit ?? 0
     this.overspeedMs = 0
+    this.raining = scenario.weather === 'rain'
+    this.hasTollGate = scenario.tollGate === true
+    this.tollPassed = false
 
     this.tweens.killTweensOf(this.car)
 
@@ -663,6 +754,12 @@ export class ScenarioScene extends Phaser.Scene {
 
     this.clearStopSign()
     if (scenario.stopSign) this.drawStopSign()
+
+    this.clearTollGate()
+    if (this.hasTollGate) this.drawTollGate()
+
+    this.clearRain()
+    if (this.raining) this.buildRain()
 
     this.applySpeedLimitSign()
     this.updateSpeedHud()
@@ -695,6 +792,8 @@ export class ScenarioScene extends Phaser.Scene {
     this.tweens.killTweensOf(this.car)
     this.clearLight()
     this.clearStopSign()
+    this.clearTollGate()
+    this.clearRain()
     this.clearNPCs()
     this.resetCarToSpawn()
   }
@@ -710,6 +809,7 @@ export class ScenarioScene extends Phaser.Scene {
     this.updateCamera(dt)
     this.updateNPCs(elapsed)
     this.updateSpeedHud()
+    this.updateRain(dt)
 
     if (this.resolved) return
     this.evaluate(elapsed, dt)
@@ -735,8 +835,9 @@ export class ScenarioScene extends Phaser.Scene {
   private updateCar(dt: number) {
     const { left, right, throttle, brake } = this.readInput()
 
+    const brakeDecel = this.raining ? BRAKE_DECEL * RAIN_BRAKE_FACTOR : BRAKE_DECEL
     if (brake) {
-      this.speed = Math.max(0, this.speed - BRAKE_DECEL * dt)
+      this.speed = Math.max(0, this.speed - brakeDecel * dt)
     } else if (throttle) {
       this.speed = Math.min(MAX_SPEED, this.speed + ACCEL * dt)
     } else {
@@ -746,7 +847,8 @@ export class ScenarioScene extends Phaser.Scene {
     if (this.speed > STOP_EPS) {
       const steer = (right ? 1 : 0) - (left ? 1 : 0)
       const speedFactor = Math.min(1, this.speed / 120)
-      this.heading += steer * TURN_RATE * speedFactor * dt
+      const turnRate = this.raining ? TURN_RATE * RAIN_TURN_FACTOR : TURN_RATE
+      this.heading += steer * turnRate * speedFactor * dt
     }
 
     const fx = Math.sin(this.heading)
@@ -784,6 +886,18 @@ export class ScenarioScene extends Phaser.Scene {
       } else {
         this.overspeedMs = Math.max(0, this.overspeedMs - dt * 1000)
       }
+    }
+
+    // 0b) ETC toll gate — must reach the bar at crawl speed or hit it.
+    if (this.hasTollGate && !this.tollPassed && this.car.y <= GATE_Y) {
+      const kmh = this.speed * KMH_PER_PX
+      if (kmh > ETC_MAX_KMH) {
+        // Slam the bar down and treat it as a collision.
+        this.tollBar?.setFillStyle(0xd32f2f)
+        return this.resolve('collision')
+      }
+      this.tollPassed = true
+      this.tollBar?.setVisible(false) // bar lifts / opens
     }
 
     // 1) Collision

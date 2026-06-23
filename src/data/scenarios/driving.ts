@@ -365,9 +365,89 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
+  // 13) Rain — wet road, yield to a pedestrian with a longer braking distance
+  {
+    id: 'rain-ped',
+    category: 'pedestrian',
+    roadType: 'cross',
+    modes: ['normal', 'challenge'],
+    title: { 'zh-TW': '落雨讓行人', ja: '雨天の歩行者' },
+    instruction: { 'zh-TW': '直行（落雨路滑，提早煞車讓行人）', ja: '直進（雨で滑る・早めにブレーキ）' },
+    difficulty: 3,
+    maneuver: 'straight',
+    speedLimit: 40,
+    weather: 'rain',
+    light: { type: 'standard', color: 'green' },
+    npcs: [
+      {
+        id: 'ped',
+        type: 'pedestrian',
+        startX: CX - ROAD_W / 2 - 10, startY: PED_Y,
+        endX:   CX + ROAD_W / 2 + 10, endY:   PED_Y,
+        speed: 46, startAtMs: 2400, color: 0xffd54f,
+      },
+    ],
+    evaluation: {},
+    feedback: {
+      explanation: {
+        'zh-TW': '沖繩成日落雨，濕滑路面煞車距離會長好多，輪胎抓地力又差。落雨要提早收油、提早輕煞，留多啲安全距離，唔好突然死踩。',
+        ja: '沖縄は雨が多く、濡れた路面では制動距離が大きく伸び、グリップも落ちます。早めにアクセルを緩めて早めにブレーキし、車間と安全距離を多めに取りましょう。',
+      },
+      lawArticle: '道路交通法第38条・第70条',
+      commonMistake: {
+        'zh-TW': '當乾地咁踩，落雨先發現煞唔切，尤其讓緊行人嗰陣。',
+        ja: '乾いた路面の感覚で運転し、雨天で止まりきれないのが典型例です。',
+      },
+    },
+  },
+
   // ── Challenge only ─────────────────────────────────────────────────────────
 
-  // 13) Right turn — yield to oncoming straight traffic
+  // 14) ETC toll gate + merge onto the Okinawa Expressway
+  {
+    id: 'etc-merge',
+    category: 'standard',
+    roadType: 'highway',
+    modes: ['challenge'],
+    title: { 'zh-TW': 'ETC收費站＋合流', ja: 'ETC料金所＋合流' },
+    instruction: { 'zh-TW': '直行（ETC閘口減速到20以下，再加速合流）', ja: '直進（ETCは20以下に減速→加速して合流）' },
+    difficulty: 3,
+    maneuver: 'straight',
+    speedLimit: 80,
+    tollGate: true,
+    light: null,
+    npcs: [
+      // Mainline traffic streaming past in the opposite carriageway.
+      {
+        id: 'main1',
+        type: 'vehicle',
+        startX: HWY_SB_X, startY: 80,
+        endX:   HWY_SB_X, endY:   1050,
+        speed: 150, startAtMs: 800, color: 0x4455ff,
+      },
+      {
+        id: 'main2',
+        type: 'vehicle',
+        startX: HWY_SB_X, startY: 80,
+        endX:   HWY_SB_X, endY:   1050,
+        speed: 150, startAtMs: 3200, color: 0xff5544,
+      },
+    ],
+    evaluation: {},
+    feedback: {
+      explanation: {
+        'zh-TW': '上沖繩自動車道要經收費站：ETC車道唔使停但要減到20km/h以下俾閘門開（太快會撞桿）；冇ETC就行「一般」車道攞票／俾現金。過閘後喺加速車道加速到接近本線車速，望後鏡睇空檔先順暢合流。',
+        ja: '沖縄自動車道の料金所：ETCレーンは止まらないが20km/h以下に減速（速すぎるとバーに衝突）。ETCが無ければ「一般」レーンで発券・現金。通過後は加速車線で本線速度近くまで加速し、後方を確認して合流します。',
+      },
+      lawArticle: '道路交通法第75条の4・道路整備特別措置法',
+      commonMistake: {
+        'zh-TW': '高速衝過ETC閘門撞桿，或者合流時唔加速、停喺加速車道度等，好危險。',
+        ja: 'ETCを高速で通過してバーに衝突、または加速せず合流車線で止まるのは危険です。',
+      },
+    },
+  },
+
+  // 15) Right turn — yield to oncoming straight traffic
   {
     id: 'std-right-yield',
     category: 'standard',
@@ -398,7 +478,7 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
-  // 14) Red main + right arrow — only right turn allowed
+  // 16) Red main + right arrow — only right turn allowed
   {
     id: 'arrow-red-right',
     category: 'arrow',
@@ -424,7 +504,7 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
-  // 15) No signal — yield to priority (crossing) road
+  // 17) No signal — yield to priority (crossing) road
   {
     id: 'priority-yield',
     category: 'priority',
@@ -455,7 +535,7 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
-  // 16) Busy intersection — green light but pedestrian + oncoming car
+  // 18) Busy intersection — green light but pedestrian + oncoming car
   {
     id: 'busy-intersection',
     category: 'pedestrian',
@@ -499,7 +579,7 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
-  // 17) Right turn — TWO oncoming vehicles in sequence
+  // 19) Right turn — TWO oncoming vehicles in sequence
   {
     id: 'right-two-oncoming',
     category: 'standard',
@@ -541,7 +621,7 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
-  // 18) Expressway — maintain lane on the Okinawa Expressway (80 km/h)
+  // 20) Expressway — maintain lane on the Okinawa Expressway (80 km/h)
   {
     id: 'highway-express',
     category: 'standard',
