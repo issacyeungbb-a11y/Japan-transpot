@@ -30,6 +30,7 @@
     "ran_red": "信号無視／一時不停止で進入",
     "no_full_stop": "完全に停止していません",
     "collision": "衝突しました！",
+    "failed_to_yield": "譲らずに危険エリアへ進入",
     "wrong_way": "進行方向が違います",
     "off_road": "車線を外れました",
     "speeding": "速度超過です",

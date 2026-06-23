@@ -10,7 +10,7 @@ import type {
   OutcomeReason,
   RoadType,
 } from '../../data/types'
-import { GAME_WIDTH, GAME_HEIGHT } from '../GameConfig'
+import { GAME_WIDTH, GAME_HEIGHT } from '../dimensions'
 
 // ---- Colours ----
 const ROAD_COLOR       = 0x4a4a4a
@@ -28,10 +28,12 @@ const CX = GAME_WIDTH / 2 // 400
 const CY = 520             // intersection centre in world coords
 
 const ROAD_W = 80
+const NARROW_ROAD_W = 56
 const INT = 80  // intersection square half-side * 2
 
 // Japan left-hand traffic: player (northbound) keeps LEFT lane.
 const NB_LANE_X = CX - 20 // 380  (city roads)
+const NARROW_NB_X = CX - 14
 
 // Highway has two lanes per direction; player in left-half of left carriageway.
 const HIGHWAY_W      = 160  // total road width
@@ -45,6 +47,7 @@ const BUS_NORMAL_X = CX + 30 // 430 — normal lane centre (player keeps right)
 
 // Stop line is south of the pedestrian crossing, south of the intersection.
 const STOP_LINE_Y = CY + INT / 2 + 50 // 610
+const CROSSWALK_Y = CY + INT / 2 + 48
 
 // Player spawns near the bottom of the world.
 const SPAWN_Y = WORLD_HEIGHT - 60 // 940
@@ -137,6 +140,8 @@ export class ScenarioScene extends Phaser.Scene {
   private hasTollGate = false
   private tollPassed = false
   private hasBusLane = false
+  private hasNarrowRoad = false
+  private hasCrosswalk = false
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
   private keyW?: Phaser.Input.Keyboard.Key
@@ -203,6 +208,7 @@ export class ScenarioScene extends Phaser.Scene {
       this.drawHighwayRoad(g)
     } else if (roadType === 'straight') {
       if (this.hasBusLane) this.drawBusLaneRoad(g)
+      else if (this.hasNarrowRoad) this.drawNarrowRoad(g)
       else this.drawStraightRoad(g)
     } else {
       this.drawCrossRoad(g, roadType)
@@ -269,6 +275,43 @@ export class ScenarioScene extends Phaser.Scene {
     // Stop line south of the light
     g.fillStyle(ROAD_LINE)
     g.fillRect(CX - ROAD_W / 2, STOP_LINE_Y, ROAD_W, 4)
+    if (this.hasCrosswalk) this.drawSouthCrosswalk(g, ROAD_W)
+  }
+
+  private drawNarrowRoad(g: Phaser.GameObjects.Graphics) {
+    const hw = NARROW_ROAD_W / 2
+
+    // Concrete walls/gutters hugging the road, common in older Okinawa streets.
+    g.fillStyle(0x6f6f6f)
+    g.fillRect(CX - hw - 12, 0, 8, WORLD_HEIGHT)
+    g.fillRect(CX + hw + 4, 0, 8, WORLD_HEIGHT)
+    g.fillStyle(0x2f5f2f)
+    g.fillRect(CX - hw - 4, 0, 4, WORLD_HEIGHT)
+    g.fillRect(CX + hw, 0, 4, WORLD_HEIGHT)
+
+    g.fillStyle(ROAD_COLOR)
+    g.fillRect(CX - hw, 0, NARROW_ROAD_W, WORLD_HEIGHT)
+
+    // Faded centre dashes: visually present but easy to drift over.
+    g.fillStyle(ROAD_LINE, 0.55)
+    for (let y = 16; y < WORLD_HEIGHT; y += 42) {
+      g.fillRect(CX - 1, y, 2, 22)
+    }
+
+    // Small passing bay and mirrors/signage cues.
+    g.fillStyle(0x555555)
+    g.fillRoundedRect(CX - hw - 22, 430, 22, 130, 5)
+    g.fillStyle(0xffcc00)
+    g.fillTriangle(CX + hw + 10, 690, CX + hw + 34, 690, CX + hw + 22, 714)
+    const sign = this.add
+      .text(CX + hw + 22, 700, '狭', { fontFamily: 'sans-serif', fontSize: '12px', fontStyle: 'bold', color: '#111111' })
+      .setOrigin(0.5)
+      .setDepth(2)
+    this.busLabels.push(sign)
+
+    g.fillStyle(ROAD_LINE)
+    g.fillRect(CX - hw, STOP_LINE_Y, NARROW_ROAD_W, 4)
+    if (this.hasCrosswalk) this.drawSouthCrosswalk(g, NARROW_ROAD_W)
   }
 
   private drawBusLaneRoad(g: Phaser.GameObjects.Graphics) {
@@ -391,11 +434,17 @@ export class ScenarioScene extends Phaser.Scene {
     g.fillRect(CX + INT / 2, CY - ROAD_W / 2, 4, ROAD_W)        // east
 
     // Zebra crossing on player's south approach
-    for (let i = 0; i < 5; i++) {
-      g.fillRect(CX - ROAD_W / 2 + i * 16, CY + INT / 2 + 16, 10, 18)
-    }
+    this.drawSouthCrosswalk(g, ROAD_W)
     // Physical stop line south of crosswalk
     g.fillRect(CX - ROAD_W / 2, STOP_LINE_Y, ROAD_W, 4)
+  }
+
+  private drawSouthCrosswalk(g: Phaser.GameObjects.Graphics, width: number) {
+    const stripeCount = Math.max(4, Math.floor(width / 16))
+    const stripeW = Math.max(8, width / stripeCount - 6)
+    for (let i = 0; i < stripeCount; i++) {
+      g.fillRect(CX - width / 2 + i * (width / stripeCount) + 3, CROSSWALK_Y - 9, stripeW, 18)
+    }
   }
 
   private drawGoalMarker(maneuver: Maneuver) {
@@ -636,6 +685,7 @@ export class ScenarioScene extends Phaser.Scene {
   private spawnLaneX(roadType: RoadType): number {
     if (roadType === 'highway') return HIGHWAY_NB_X
     if (this.hasBusLane) return BUS_NORMAL_X
+    if (this.hasNarrowRoad) return NARROW_NB_X
     return NB_LANE_X
   }
 
@@ -827,6 +877,8 @@ export class ScenarioScene extends Phaser.Scene {
     this.hasTollGate = scenario.tollGate === true
     this.tollPassed = false
     this.hasBusLane = scenario.busLane === true
+    this.hasNarrowRoad = scenario.narrowRoad === true
+    this.hasCrosswalk = scenario.crosswalk === true
 
     this.tweens.killTweensOf(this.car)
 
@@ -1018,6 +1070,21 @@ export class ScenarioScene extends Phaser.Scene {
       }
     }
 
+    // 1b) Yielding — fail before a crash if the player enters a conflict area
+    // while someone else still has priority. This is the difference between a
+    // driving drill and a bumper-car test.
+    if (this.enteringConflictArea() && this.speed > STOP_EPS) {
+      for (const { def, obj } of this.npcs) {
+        if (!obj.visible) continue
+        if (ev.yieldToPedestrians && def.type === 'pedestrian' && this.pedestrianHasPriority(obj)) {
+          return this.resolve('failed_to_yield')
+        }
+        if (ev.yieldToVehicles && def.type === 'vehicle' && this.vehicleHasPriority(obj, roadType)) {
+          return this.resolve('failed_to_yield')
+        }
+      }
+    }
+
     // 2) Full-stop tracking (before the line)
     if (!this.crossedLine && this.speed < STOP_EPS && this.car.y > STOP_LINE_Y) {
       this.hasStopped = true
@@ -1066,6 +1133,9 @@ export class ScenarioScene extends Phaser.Scene {
     if (roadType === 'straight' && this.hasBusLane) {
       return Math.abs(this.car.x - CX) > BUS_ROAD_W / 2 + 6
     }
+    if (roadType === 'straight' && this.hasNarrowRoad) {
+      return Math.abs(this.car.x - CX) > NARROW_ROAD_W / 2 + 4
+    }
 
     const onNS = Math.abs(this.car.x - CX) <= ROAD_W / 2 + 6
     const onEW = Math.abs(this.car.y - CY) <= ROAD_W / 2 + 6
@@ -1079,6 +1149,38 @@ export class ScenarioScene extends Phaser.Scene {
     }
     // cross
     return !onNS && !onEW
+  }
+
+  private enteringConflictArea(): boolean {
+    if (!this.scenario) return false
+    const roadType: RoadType = this.scenario.roadType ?? 'cross'
+
+    if (roadType === 'straight' && this.hasNarrowRoad) {
+      return this.car.y < 760 && this.car.y > 360
+    }
+
+    if (this.scenario.maneuver === 'right') {
+      return this.car.y <= STOP_LINE_Y + 28 && this.car.y > CY - INT / 2 - 8
+    }
+
+    return this.car.y <= STOP_LINE_Y + 18 && this.car.y > CY - INT / 2 - 8
+  }
+
+  private pedestrianHasPriority(obj: Phaser.GameObjects.Container): boolean {
+    const onCrosswalk = Math.abs(obj.y - CROSSWALK_Y) < 26
+    const crossingRoad = obj.x > CX - ROAD_W / 2 - 24 && obj.x < CX + ROAD_W / 2 + 24
+    return onCrosswalk && crossingRoad
+  }
+
+  private vehicleHasPriority(obj: Phaser.GameObjects.Container, roadType: RoadType): boolean {
+    if (roadType === 'straight' && this.hasNarrowRoad) {
+      const closingGap = obj.y < this.car.y && this.car.y - obj.y < 190
+      const sameNarrowRoad = Math.abs(obj.x - CX) < NARROW_ROAD_W / 2 + 12
+      return closingGap && sameNarrowRoad
+    }
+
+    const nearIntersection = Math.abs(obj.x - CX) < 120 && Math.abs(obj.y - CY) < 120
+    return nearIntersection
   }
 
   private resolve(reason: OutcomeReason) {

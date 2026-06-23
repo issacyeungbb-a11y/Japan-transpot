@@ -30,6 +30,7 @@
     "ran_red": "衝燈／未讓行就駛入路口",
     "no_full_stop": "冇完全停車（一時停止）",
     "collision": "發生碰撞！",
+    "failed_to_yield": "未讓行就駛入危險區",
     "wrong_way": "駛錯方向",
     "off_road": "偏離車道",
     "speeding": "超速駕駛",

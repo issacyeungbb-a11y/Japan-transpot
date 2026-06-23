@@ -77,6 +77,12 @@ export interface ScenarioEvaluation {
   waitForGo?: boolean
   // Legal exits from the intersection. If omitted, all maneuvers are allowed.
   allowedManeuvers?: Maneuver[]
+  // The driver must wait while a pedestrian is occupying or entering the
+  // crosswalk, even if the vehicle signal is green.
+  yieldToPedestrians?: boolean
+  // The driver must give way to cross traffic, oncoming straight traffic, or a
+  // narrow-road oncoming vehicle before entering the conflict area.
+  yieldToVehicles?: boolean
 }
 
 export type RoadType = 'cross' | 't-junction' | 'straight' | 'highway'
@@ -111,6 +117,12 @@ export interface Scenario {
   // Renders a blue 「バス専用」 lane on the left with a bus; driving in it during
   // the restricted hours is a violation. Player must keep to the right lane.
   busLane?: boolean
+  // Draws a single-car-width Okinawa back street with walls, gutters, and
+  // passing-space pressure. The player has less room for steering mistakes.
+  narrowRoad?: boolean
+  // Paints a zebra crossing on a straight/narrow road, for unsignalised
+  // pedestrian-yield drills near tourist spots, schools, and shops.
+  crosswalk?: boolean
   evaluation: ScenarioEvaluation
   feedback: FeedbackContent
 }
@@ -120,6 +132,7 @@ export type OutcomeReason =
   | 'ran_red' // crossed the line when stopping/waiting was required
   | 'no_full_stop' // failed to fully stop where a full stop was mandatory
   | 'collision' // hit a vehicle or pedestrian
+  | 'failed_to_yield' // entered while a pedestrian/priority vehicle still had right of way
   | 'wrong_way' // took an illegal direction
   | 'off_road' // left the roadway
   | 'speeding' // exceeded the posted speed limit for too long

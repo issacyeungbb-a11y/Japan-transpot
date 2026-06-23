@@ -1,9 +1,7 @@
 import Phaser from 'phaser'
 import { BootScene } from './scenes/BootScene'
 import { ScenarioScene } from './scenes/ScenarioScene'
-
-export const GAME_WIDTH = 800
-export const GAME_HEIGHT = 450
+import { GAME_WIDTH, GAME_HEIGHT } from './dimensions'
 
 export function createGameConfig(parent: HTMLElement): Phaser.Types.Core.GameConfig {
   return {

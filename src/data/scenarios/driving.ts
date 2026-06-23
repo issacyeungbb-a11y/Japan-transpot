@@ -54,7 +54,7 @@ export const drivingScenarios: Scenario[] = [
     maneuver: 'straight',
     speedLimit: 50,
     light: { type: 'standard', color: 'green' },
-    evaluation: {},
+    evaluation: { yieldToPedestrians: true },
     feedback: {
       explanation: {
         'zh-TW': '青信号（綠燈）表示可以通行。日本法律上「綠燈」正式叫「青信号」。通過時仍要留意行人同對向車。',
@@ -160,7 +160,7 @@ export const drivingScenarios: Scenario[] = [
     maneuver: 'straight',
     speedLimit: 30,
     light: { type: 'flashing', color: 'red' },
-    evaluation: { mustStop: true },
+    evaluation: { mustStop: true, yieldToVehicles: true },
     feedback: {
       explanation: {
         'zh-TW': '紅色閃爍燈＝一時停止：必須完全停車，確認左右安全後先可以通過。淨係慢落唔夠。',
@@ -210,6 +210,32 @@ export const drivingScenarios: Scenario[] = [
     },
   },
 
+  // Okinawa rental-car confidence drill — immediately settle into left-hand traffic
+  {
+    id: 'rental-keep-left',
+    category: 'priority',
+    roadType: 'straight',
+    modes: ['study', 'normal'],
+    title: { 'zh-TW': '租車出發——保持靠左', ja: 'レンタカー出発——左側通行' },
+    instruction: { 'zh-TW': '直行（保持左側車道，唔好扭返右邊）', ja: '直進（左側を維持・右へ寄らない）' },
+    difficulty: 1,
+    maneuver: 'straight',
+    speedLimit: 40,
+    light: null,
+    evaluation: {},
+    feedback: {
+      explanation: {
+        'zh-TW': '由租車店開出去頭幾分鐘最易錯：日本靠左行駛，司機坐右邊，轉入道路後要即刻將車保持喺左側行車線中心，唔好用香港／外地嘅肌肉記憶扭返右邊。',
+        ja: 'レンタカー出発直後が最も間違いやすいです。日本は左側通行・右ハンドル。道路へ出たら左側車線の中央を保ち、右側へ寄らないようにします。',
+      },
+      lawArticle: '道路交通法第17条・第18条',
+      commonMistake: {
+        'zh-TW': '一緊張就望錯方向或者駛到右側，尤其停車場出口、油站出口、細路口。',
+        ja: '緊張すると右側へ寄りがち。駐車場出口、ガソリンスタンド出口、小さな交差点で特に注意。',
+      },
+    },
+  },
+
   // ── Normal + Challenge ─────────────────────────────────────────────────────
 
   // 8) Left turn with a pedestrian crossing the exit
@@ -233,7 +259,7 @@ export const drivingScenarios: Scenario[] = [
         speed: 42, startAtMs: 3000, color: 0xffd54f,
       },
     ],
-    evaluation: { allowedManeuvers: ['left'] },
+    evaluation: { allowedManeuvers: ['left'], yieldToPedestrians: true },
     feedback: {
       explanation: {
         'zh-TW': '左轉時轉入嘅路口若有行人橫過，必須停車讓行人先過先可以轉。',
@@ -280,6 +306,7 @@ export const drivingScenarios: Scenario[] = [
     difficulty: 2,
     maneuver: 'straight',
     speedLimit: 30,
+    narrowRoad: true,
     light: null,
     npcs: [
       {
@@ -290,7 +317,7 @@ export const drivingScenarios: Scenario[] = [
         speed: 95, startAtMs: 600, color: 0xcc5522,
       },
     ],
-    evaluation: {},
+    evaluation: { yieldToVehicles: true },
     feedback: {
       explanation: {
         'zh-TW': '那霸同離島好多窄到得一架車闊嘅路。會車時要減速、靠左，必要時停低等對向車先過，唔好硬闖。',
@@ -325,7 +352,7 @@ export const drivingScenarios: Scenario[] = [
         speed: 46, startAtMs: 2600, color: 0xff7043,
       },
     ],
-    evaluation: {},
+    evaluation: { yieldToPedestrians: true },
     feedback: {
       explanation: {
         'zh-TW': '「通学路」（學校區）限速通常30km/h，上下課時間細路會突然衝出馬路。睇住速度錶，控制喺限速以下，預留煞車距離。',
@@ -335,6 +362,78 @@ export const drivingScenarios: Scenario[] = [
       commonMistake: {
         'zh-TW': '習慣咗踩到50，喺學校區就太快，細路一衝出就煞唔切。',
         ja: '50km/hの感覚のままだと速すぎ。子供の飛び出しに対応できません。',
+      },
+    },
+  },
+
+  // Tourist-spot unsignalised crosswalk — the driver must stop for pedestrians
+  {
+    id: 'tourist-crosswalk',
+    category: 'pedestrian',
+    roadType: 'straight',
+    modes: ['normal', 'challenge'],
+    title: { 'zh-TW': '景點無燈斑馬線——必須讓行', ja: '観光地の無信号横断歩道——必ず譲る' },
+    instruction: { 'zh-TW': '直行（無燈斑馬線有行人，停低讓先）', ja: '直進（無信号横断歩道の歩行者を優先）' },
+    difficulty: 2,
+    maneuver: 'straight',
+    speedLimit: 40,
+    crosswalk: true,
+    light: null,
+    npcs: [
+      {
+        id: 'tourist',
+        type: 'pedestrian',
+        startX: CX + ROAD_W / 2 + 12, startY: PED_Y,
+        endX:   CX - ROAD_W / 2 - 12, endY:   PED_Y,
+        speed: 38, startAtMs: 2100, color: 0xffd54f,
+      },
+    ],
+    evaluation: { yieldToPedestrians: true },
+    feedback: {
+      explanation: {
+        'zh-TW': '美國村、國際通、瀨長島、景點停車場附近好多無信號橫行道。只要行人正橫過或者明顯想過，車就要停定讓行。呢個比「青燈直行」更貼近旅遊自駕會遇到嘅實況。',
+        ja: 'アメリカンビレッジ、国際通り、瀬長島、観光地駐車場付近には無信号横断歩道が多いです。歩行者が横断中、または渡ろうとしているときは停止して譲ります。',
+      },
+      lawArticle: '道路交通法第38条',
+      commonMistake: {
+        'zh-TW': '以為冇燈就自己優先，直接碌過斑馬線；喺日本呢個係非常危險亦容易被取締。',
+        ja: '信号が無いから車優先と思って通過するのは危険で、取り締まり対象にもなります。',
+      },
+    },
+  },
+
+  // Convenience-store / car park exit — stop, look both ways, then turn left
+  {
+    id: 'parking-exit-left',
+    category: 'priority',
+    roadType: 't-junction',
+    modes: ['normal', 'challenge'],
+    title: { 'zh-TW': '停車場出口——停定再左轉', ja: '駐車場出口——停止して左折' },
+    instruction: { 'zh-TW': '左轉（出口先停定，讓主路車）', ja: '左折（出口で停止・本線車を優先）' },
+    difficulty: 2,
+    maneuver: 'left',
+    speedLimit: 30,
+    stopSign: true,
+    light: null,
+    npcs: [
+      {
+        id: 'main-road',
+        type: 'vehicle',
+        startX: 840, startY: CROSS_Y,
+        endX: -40,  endY: CROSS_Y,
+        speed: 150, startAtMs: 1300, color: 0x2255cc,
+      },
+    ],
+    evaluation: { mustStop: true, allowedManeuvers: ['left'], yieldToVehicles: true },
+    feedback: {
+      explanation: {
+        'zh-TW': '便利店、油站、景點停車場出口好多都好窄，而且主路車速比你估計快。見「止まれ」要完全停定，望右、望左、再望右，確認主路冇車先左轉出街。',
+        ja: 'コンビニ、ガソリンスタンド、観光地駐車場の出口は狭く、本線車は思ったより速いです。「止まれ」で完全停止し、右・左・右を確認してから左折します。',
+      },
+      lawArticle: '道路交通法第36条・第43条',
+      commonMistake: {
+        'zh-TW': '只係慢慢碌出去，望漏右邊嚟車；租車新手好容易喺出口位出事。',
+        ja: '徐行だけで出てしまい、右から来る車を見落とすのが典型的です。',
       },
     },
   },
@@ -352,7 +451,7 @@ export const drivingScenarios: Scenario[] = [
     speedLimit: 50,
     busLane: true,
     light: null,
-    evaluation: {},
+    evaluation: { yieldToPedestrians: true },
     feedback: {
       explanation: {
         'zh-TW': '那霸國道58號等幹道有「バス専用」車道，繁忙時段（一般平日約7:30–9:00、17:30–19:00）私家車唔可以入，違例會被抄牌。睇地面藍字同路牌時間。',
@@ -398,6 +497,43 @@ export const drivingScenarios: Scenario[] = [
       commonMistake: {
         'zh-TW': '當乾地咁踩，落雨先發現煞唔切，尤其讓緊行人嗰陣。',
         ja: '乾いた路面の感覚で運転し、雨天で止まりきれないのが典型例です。',
+      },
+    },
+  },
+
+  // Rain + road markings — slow down before the crosswalk, not at the last second
+  {
+    id: 'rain-tourist-crosswalk',
+    category: 'pedestrian',
+    roadType: 'straight',
+    modes: ['challenge'],
+    title: { 'zh-TW': '驟雨景點路——提早讓行', ja: 'スコール後の観光地道路——早めに譲る' },
+    instruction: { 'zh-TW': '直行（雨天見斑馬線，提早減速停車）', ja: '直進（雨天の横断歩道は早めに減速停止）' },
+    difficulty: 3,
+    maneuver: 'straight',
+    speedLimit: 40,
+    weather: 'rain',
+    crosswalk: true,
+    light: null,
+    npcs: [
+      {
+        id: 'umbrella',
+        type: 'pedestrian',
+        startX: CX - ROAD_W / 2 - 12, startY: PED_Y,
+        endX:   CX + ROAD_W / 2 + 12, endY:   PED_Y,
+        speed: 34, startAtMs: 2300, color: 0x80deea,
+      },
+    ],
+    evaluation: { yieldToPedestrians: true },
+    feedback: {
+      explanation: {
+        'zh-TW': '沖繩天氣可以突然落大雨，旅客撐傘過路時視線同煞車距離都變差。正確做法係一見前方斑馬線就收油、提早輕煞，唔好到行人面前先急煞。',
+        ja: '沖縄では急な雨があり、傘を差した歩行者は見えにくく、車の制動距離も伸びます。横断歩道が見えた時点でアクセルを戻し、早めにやさしく減速します。',
+      },
+      lawArticle: '道路交通法第38条・第70条',
+      commonMistake: {
+        'zh-TW': '落雨仍然跟乾地距離，去到斑馬線先發現停唔切。',
+        ja: '乾いた路面と同じ距離感で進み、横断歩道直前で止まりきれないミス。',
       },
     },
   },
@@ -469,7 +605,7 @@ export const drivingScenarios: Scenario[] = [
         speed: 150, startAtMs: 0, color: 0xcc2222,
       },
     ],
-    evaluation: { allowedManeuvers: ['right'] },
+    evaluation: { allowedManeuvers: ['right'], yieldToVehicles: true },
     feedback: {
       explanation: {
         'zh-TW': '即使青燈，右轉都要讓對向直行車先行。日本靠左行駛，右轉會橫過對向車道。',
@@ -526,7 +662,7 @@ export const drivingScenarios: Scenario[] = [
         speed: 210, startAtMs: 0, color: 0xe69a2e,
       },
     ],
-    evaluation: {},
+    evaluation: { yieldToVehicles: true },
     feedback: {
       explanation: {
         'zh-TW': '無信號路口要減速，橫向係優先道路（較闊／有標誌）就要讓佢哋先過，確認安全先通過。',
@@ -566,7 +702,7 @@ export const drivingScenarios: Scenario[] = [
         speed: 130, startAtMs: 0, color: 0xaa3333,
       },
     ],
-    evaluation: {},
+    evaluation: { yieldToPedestrians: true, yieldToVehicles: true },
     feedback: {
       explanation: {
         'zh-TW': '即使係青燈，行人橫道有人就必須讓行。繁忙路口要同時留意行人同對向車，千祈唔好分心。',
@@ -608,7 +744,7 @@ export const drivingScenarios: Scenario[] = [
         speed: 130, startAtMs: 2400, color: 0x2255cc,
       },
     ],
-    evaluation: { allowedManeuvers: ['right'] },
+    evaluation: { allowedManeuvers: ['right'], yieldToVehicles: true },
     feedback: {
       explanation: {
         'zh-TW': '右轉時必須讓所有對向直行車輛先過，包括第二輛。急於搶轉係引致意外嘅常見原因。',
