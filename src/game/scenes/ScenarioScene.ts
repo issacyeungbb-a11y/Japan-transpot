@@ -78,9 +78,13 @@ const CRUISE_SPEED = 60   // start speed — 50 km/h equivalent
 const MAX_SPEED = 160     // ~133 km/h equivalent
 const ACCEL = 55          // gradual throttle feel
 const BRAKE_DECEL = 320
-const COAST_FRICTION = 35 // slightly stronger roll-off
+const COAST_FRICTION = 20 // gentle roll-off when off the throttle
 const TURN_RATE = 2.5  // rad/s at full steering
 const STOP_EPS = 12       // speed threshold (px/s) that counts as "fully stopped"
+// Below this speed (≈30 km/h) the player is treated as crawling/yielding, so a
+// careful driver who slows right down for a pedestrian or priority car is never
+// failed for "not yielding". Only barrelling through at speed is punished.
+const YIELD_CREEP_SPEED = 36
 
 // World px → km/h so the speedometer reads like a real car.
 // Chosen so the natural cruise (60 px/s) shows 50 km/h — the common Okinawa
@@ -1345,26 +1349,36 @@ export class ScenarioScene extends Phaser.Scene {
       return this.resolve('bus_lane')
     }
 
-    // 1) Collision
+    // 1) Collision. A stationary car cannot run anyone over, so a pedestrian
+    // walking across in front of a car that has correctly stopped to yield is
+    // NOT a crash — only count a pedestrian hit while the car is actually
+    // moving. (Vehicles can still collide with a stopped car.)
     for (const { def, obj } of this.npcs) {
       if (!obj.visible) continue
-      const r = def.type === 'pedestrian' ? NPC_PED_R : NPC_CAR_R
+      const isPed = def.type === 'pedestrian'
+      if (isPed && this.speed <= STOP_EPS) continue
+      const r = isPed ? NPC_PED_R : NPC_CAR_R
       if (Math.hypot(this.car.x - obj.x, this.car.y - obj.y) < CAR_R + r) {
         return this.resolve('collision')
       }
     }
 
-    // 1b) Yielding — fail before a crash if the player enters a conflict area
-    // while someone else still has priority. This is the difference between a
-    // driving drill and a bumper-car test.
-    if (this.enteringConflictArea() && this.speed > STOP_EPS) {
+    // 1b) Yielding — fail before a crash if the player drives into a conflict
+    // while someone else still has priority. To avoid false failures this only
+    // triggers on a GENUINE, imminent conflict: the player is still rolling
+    // faster than a careful crawl AND the priority road-user is close and in
+    // the car's path. Slowing right down or stopping always counts as yielding.
+    if (this.enteringConflictArea() && this.speed > YIELD_CREEP_SPEED) {
       for (const { def, obj } of this.npcs) {
         if (!obj.visible) continue
+        const gap = Math.hypot(this.car.x - obj.x, this.car.y - obj.y)
         if (ev.yieldToPedestrians && def.type === 'pedestrian' && this.pedestrianHasPriority(obj)) {
-          return this.resolve('failed_to_yield')
+          const ahead = obj.y < this.car.y + 8          // not already passed by the car
+          const inLane = Math.abs(obj.x - this.car.x) < 28
+          if (ahead && inLane && gap < 78) return this.resolve('failed_to_yield')
         }
         if (ev.yieldToVehicles && def.type === 'vehicle' && this.vehicleHasPriority(obj, roadType)) {
-          return this.resolve('failed_to_yield')
+          if (gap < 95) return this.resolve('failed_to_yield')
         }
       }
     }
