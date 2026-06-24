@@ -74,17 +74,17 @@ const GOAL_RIGHT_X  = CX + 160    // 560
 const GOAL_LEFT_X   = CX - 160    // 240
 
 // ---- Physics ----
-const CRUISE_SPEED = 90
-const MAX_SPEED = 220
-const ACCEL = 150
+const CRUISE_SPEED = 60   // start speed — 50 km/h equivalent
+const MAX_SPEED = 160     // ~133 km/h equivalent
+const ACCEL = 55          // gradual throttle feel
 const BRAKE_DECEL = 320
-const COAST_FRICTION = 20
+const COAST_FRICTION = 35 // slightly stronger roll-off
 const TURN_RATE = 2.5  // rad/s at full steering
-const STOP_EPS = 8
+const STOP_EPS = 12       // speed threshold (px/s) that counts as "fully stopped"
 
 // World px → km/h so the speedometer reads like a real car.
-// Chosen so the natural cruise (90 px/s) shows 50 km/h — the common Okinawa
-// local limit — and full throttle tops out around 122 km/h.
+// Chosen so the natural cruise (60 px/s) shows 50 km/h — the common Okinawa
+// local limit — and full throttle tops out around 133 km/h.
 const KMH_PER_PX = 50 / CRUISE_SPEED
 // How far over the posted limit (km/h) is tolerated, and for how long (ms),
 // before it counts as a speeding violation. A short overshoot is forgiven.
@@ -100,9 +100,9 @@ const GATE_Y = 770
 const ETC_MAX_KMH = 25
 
 // ---- Collision radii ----
-const CAR_R = 19
-const NPC_CAR_R = 18
-const NPC_PED_R = 11
+const CAR_R = 15
+const NPC_CAR_R = 14
+const NPC_PED_R = 8
 
 type Phase = 'idle' | 'ready' | 'drive' | 'done'
 
