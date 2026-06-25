@@ -59,6 +59,7 @@ export interface LightChange {
 export interface ScenarioNPC {
   id: string
   type: 'vehicle' | 'pedestrian'
+  variant?: 'car' | 'kei' | 'taxi' | 'truck' | 'bus' | 'scooter'
   startX: number
   startY: number
   endX: number
@@ -100,6 +101,14 @@ export interface Scenario {
   roadType?: RoadType
   // Which game modes include this scenario; omit to include in all modes.
   modes?: GameMode[]
+  // Scenario timeout. Longer, busier levels use more time so the player can
+  // practise waiting, scanning, and completing the manoeuvre calmly.
+  timeLimitMs?: number
+  // Controls ambient traffic added by the scenario enhancer.
+  trafficDensity?: 'light' | 'normal' | 'busy'
+  // Controls extra road markings such as lane arrows, turn guides, merge zones,
+  // and side-street clutter.
+  roadComplexity?: 'simple' | 'urban' | 'complex'
   light: TrafficLightState | null
   lightChanges?: LightChange[]
   npcs?: ScenarioNPC[]

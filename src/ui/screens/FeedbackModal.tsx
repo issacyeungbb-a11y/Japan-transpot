@@ -23,7 +23,10 @@ export function FeedbackModal({ scenario, outcome, pointsEarned, onNext }: Props
   // gets stuck on the feedback screen — the manual button still works too.
   const [countdown, setCountdown] = useState(AUTO_ADVANCE_SECONDS)
   const onNextRef = useRef(onNext)
-  onNextRef.current = onNext
+  useEffect(() => {
+    onNextRef.current = onNext
+  }, [onNext])
+
   useEffect(() => {
     // Visual tick only — never trigger store updates from inside a setState
     // updater (that runs during render and is illegal).

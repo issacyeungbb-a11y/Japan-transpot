@@ -102,6 +102,7 @@ const SPEED_GRACE_MS = 1600
 // trip a speeding fault, but the car now has noticeably more headroom to pull
 // away and feel responsive rather than capped right at the limit.
 const THROTTLE_HEADROOM = 20
+const DEFAULT_TIME_LIMIT_MS = 42000
 
 // Wet road: brakes bite less (longer stopping distance) and grip drops.
 const RAIN_BRAKE_FACTOR = 0.55
@@ -167,6 +168,7 @@ export class ScenarioScene extends Phaser.Scene {
   private hasBusLane = false
   private hasNarrowRoad = false
   private hasCrosswalk = false
+  private roadComplexity: NonNullable<Scenario['roadComplexity']> = 'simple'
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
   private keyW?: Phaser.Input.Keyboard.Key
@@ -244,6 +246,10 @@ export class ScenarioScene extends Phaser.Scene {
       else this.drawStraightRoad(g)
     } else {
       this.drawCrossRoad(g, roadType)
+    }
+
+    if (this.roadComplexity !== 'simple') {
+      this.drawRoadComplexity(g, roadType, maneuver)
     }
 
     this.drawGoalMarker(maneuver)
@@ -661,6 +667,96 @@ export class ScenarioScene extends Phaser.Scene {
     v.fillRect(0, 0, 64, GAME_HEIGHT)
     v.fillGradientStyle(B, B, B, B, 0, 0.4, 0, 0.4)
     v.fillRect(GAME_WIDTH - 64, 0, 64, GAME_HEIGHT)
+  }
+
+  private drawRoadComplexity(g: Phaser.GameObjects.Graphics, roadType: RoadType, maneuver: Maneuver) {
+    if (roadType === 'highway') {
+      this.drawHighwayMergeMarkings(g)
+      return
+    }
+
+    if (roadType === 'straight') {
+      this.drawUrbanStraightMarkings(g)
+      return
+    }
+
+    this.drawIntersectionLaneGuides(g, roadType, maneuver)
+  }
+
+  private drawUrbanStraightMarkings(g: Phaser.GameObjects.Graphics) {
+    const roadWidth = this.hasNarrowRoad ? NARROW_ROAD_W : this.hasBusLane ? BUS_ROAD_W : ROAD_W
+    const hw = roadWidth / 2
+
+    // Utility covers and road-edge clutter make the road feel less like an empty test track.
+    g.fillStyle(0x222222, 0.55)
+    g.fillCircle(CX + hw - 14, 720, 7)
+    g.fillCircle(CX - hw + 14, 505, 6)
+
+    g.fillStyle(0xffd54f, 0.85)
+    this.drawUpArrow(g, this.spawnLaneX('straight'), 790)
+    if (this.roadComplexity === 'complex') {
+      g.fillStyle(0xffffff, 0.28)
+      for (let y = 690; y < 850; y += 26) {
+        g.fillRect(CX + hw + 4, y, 12, 3)
+      }
+    }
+  }
+
+  private drawHighwayMergeMarkings(g: Phaser.GameObjects.Graphics) {
+    const mergeX = HIGHWAY_NB_X + 42
+
+    g.fillStyle(0x2f2f2f)
+    g.fillRect(mergeX - 16, 610, 34, 220)
+
+    // Diagonal hatch markings at the start of the merge/acceleration lane.
+    g.lineStyle(3, ROAD_LINE, 0.65)
+    for (let y = 620; y < 780; y += 24) {
+      g.lineBetween(mergeX - 16, y + 18, mergeX + 18, y)
+    }
+
+    const label = this.add
+      .text(mergeX, 735, '合流', { fontFamily: 'sans-serif', fontSize: '14px', fontStyle: 'bold', color: '#ffffff' })
+      .setOrigin(0.5)
+      .setDepth(2)
+    this.busLabels.push(label)
+  }
+
+  private drawIntersectionLaneGuides(g: Phaser.GameObjects.Graphics, roadType: RoadType, maneuver: Maneuver) {
+    const approachY = STOP_LINE_Y + 132
+
+    // Approach arrows: straight plus the intended turning route.
+    g.fillStyle(0xffd54f, 0.82)
+    if (maneuver === 'left') {
+      this.drawLeftArrow(g, NB_LANE_X - 2, approachY)
+    } else if (maneuver === 'right') {
+      this.drawRightArrow(g, NB_LANE_X + 2, approachY)
+    } else {
+      this.drawUpArrow(g, NB_LANE_X, approachY)
+    }
+
+    // Dotted route guide through the junction, useful for turn judgement.
+    g.lineStyle(3, 0xffd54f, 0.62)
+    if (maneuver === 'left') {
+      g.lineBetween(NB_LANE_X, STOP_LINE_Y - 6, CX - 34, CY + 8)
+      g.lineBetween(CX - 34, CY + 8, GOAL_LEFT_X + 30, CY - 18)
+    } else if (maneuver === 'right') {
+      g.lineBetween(NB_LANE_X, STOP_LINE_Y - 6, CX + 28, CY + 4)
+      g.lineBetween(CX + 28, CY + 4, GOAL_RIGHT_X - 30, CY + 18)
+    } else {
+      g.lineBetween(NB_LANE_X, STOP_LINE_Y - 6, NB_LANE_X, CY - 72)
+    }
+
+    if (this.roadComplexity === 'complex') {
+      // Extra lane boxes and side-street clutter on busy junctions.
+      g.fillStyle(0xffffff, 0.22)
+      g.fillRect(CX - ROAD_W / 2, CY + INT / 2 + 46, ROAD_W, 3)
+      g.fillRect(CX + INT / 2 + 46, CY - ROAD_W / 2, 3, ROAD_W)
+      if (roadType === 'cross') {
+        g.fillStyle(0x333333)
+        g.fillRoundedRect(CX - ROAD_W / 2 - 36, CY + 82, 22, 42, 4)
+        g.fillRoundedRect(CX + ROAD_W / 2 + 14, CY - 126, 22, 42, 4)
+      }
+    }
   }
 
   private drawGoalMarker(maneuver: Maneuver) {
@@ -1101,8 +1197,11 @@ export class ScenarioScene extends Phaser.Scene {
   private spawnNPCs(scenario: Scenario) {
     this.clearNPCs()
     scenario.npcs?.forEach((def) => {
-      const obj = def.type === 'pedestrian' ? this.createPedestrian(def.color) : this.createNPCCar(def.color)
+      const obj = def.type === 'pedestrian' ? this.createPedestrian(def.color) : this.createNPCCar(def.color, def.variant)
       obj.setPosition(def.startX, def.startY)
+      if (def.type === 'vehicle') {
+        obj.setRotation(Math.atan2(def.endX - def.startX, -(def.endY - def.startY)))
+      }
       obj.setDepth(8)
       obj.setVisible(false)
       this.npcs.push({ def, obj })
@@ -1128,34 +1227,70 @@ export class ScenarioScene extends Phaser.Scene {
     return this.add.container(0, 0, [shadow, g])
   }
 
-  private createNPCCar(color = 0xcc2222): Phaser.GameObjects.Container {
+  private createNPCCar(color = 0xcc2222, variant: ScenarioNPC['variant'] = 'car'): Phaser.GameObjects.Container {
     const shadow = this.add.graphics()
-    shadow.fillStyle(0x000000, 0.26)
-    shadow.fillEllipse(3, 5, 38, 56)
     const g = this.add.graphics()
-    // wheels
-    g.fillStyle(0x0a0a0a)
-    g.fillRoundedRect(-19, -18, 5, 12, 2)
-    g.fillRoundedRect(14, -18, 5, 12, 2)
-    g.fillRoundedRect(-19, 8, 5, 12, 2)
-    g.fillRoundedRect(14, 8, 5, 12, 2)
-    // body two-tone
-    g.fillStyle(Phaser.Display.Color.IntegerToColor(color).darken(22).color)
-    g.fillRoundedRect(-15, -24, 30, 48, 6)
-    g.fillStyle(color)
-    g.fillRoundedRect(-13, -22, 26, 44, 5)
-    // windows
-    g.fillStyle(0x9fd3ff, 0.85)
-    g.fillRoundedRect(-10, -16, 20, 11, 3)
-    g.fillStyle(0x9fd3ff, 0.7)
-    g.fillRoundedRect(-10, 7, 20, 9, 3)
-    // lights
-    g.fillStyle(0xfff59d)
-    g.fillRoundedRect(-12, -24, 8, 4, 2)
-    g.fillRoundedRect(4, -24, 8, 4, 2)
-    g.fillStyle(0xff5252)
-    g.fillRoundedRect(-12, 20, 8, 4, 2)
-    g.fillRoundedRect(4, 20, 8, 4, 2)
+
+    if (variant === 'scooter') {
+      shadow.fillStyle(0x000000, 0.22)
+      shadow.fillEllipse(2, 5, 18, 42)
+      g.fillStyle(color)
+      g.fillRoundedRect(-6, -18, 12, 34, 5)
+      g.fillStyle(0x111111)
+      g.fillCircle(0, -22, 5)
+      g.fillCircle(0, 20, 5)
+      g.fillStyle(0xfff176)
+      g.fillCircle(0, -16, 3)
+    } else {
+      const w = variant === 'bus' ? 34 : variant === 'truck' ? 34 : variant === 'kei' ? 26 : 30
+      const h = variant === 'bus' ? 76 : variant === 'truck' ? 64 : variant === 'kei' ? 42 : 48
+      const radius = variant === 'truck' ? 3 : 6
+
+      shadow.fillStyle(0x000000, 0.26)
+      shadow.fillEllipse(3, 5, w + 8, h + 8)
+
+      // wheels
+      g.fillStyle(0x0a0a0a)
+      g.fillRoundedRect(-w / 2 - 4, -h / 2 + 8, 5, 12, 2)
+      g.fillRoundedRect(w / 2 - 1, -h / 2 + 8, 5, 12, 2)
+      g.fillRoundedRect(-w / 2 - 4, h / 2 - 20, 5, 12, 2)
+      g.fillRoundedRect(w / 2 - 1, h / 2 - 20, 5, 12, 2)
+
+      // body two-tone
+      g.fillStyle(Phaser.Display.Color.IntegerToColor(color).darken(22).color)
+      g.fillRoundedRect(-w / 2, -h / 2, w, h, radius)
+      g.fillStyle(color)
+      g.fillRoundedRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4, Math.max(2, radius - 1))
+
+      // windows
+      g.fillStyle(0x9fd3ff, 0.85)
+      g.fillRoundedRect(-w / 2 + 5, -h / 2 + 8, w - 10, 11, 3)
+      if (variant === 'bus') {
+        g.fillRoundedRect(-w / 2 + 5, -8, w - 10, 12, 3)
+        g.fillRoundedRect(-w / 2 + 5, 12, w - 10, 12, 3)
+      } else if (variant !== 'truck') {
+        g.fillStyle(0x9fd3ff, 0.7)
+        g.fillRoundedRect(-w / 2 + 5, h / 2 - 17, w - 10, 9, 3)
+      }
+
+      if (variant === 'truck') {
+        g.fillStyle(0xb0bec5)
+        g.fillRoundedRect(-w / 2 + 4, 2, w - 8, h / 2 - 8, 2)
+      }
+      if (variant === 'taxi') {
+        g.fillStyle(0x111111)
+        g.fillRect(-8, -h / 2 - 3, 16, 5)
+      }
+
+      // lights
+      g.fillStyle(0xfff59d)
+      g.fillRoundedRect(-w / 2 + 3, -h / 2, 8, 4, 2)
+      g.fillRoundedRect(w / 2 - 11, -h / 2, 8, 4, 2)
+      g.fillStyle(0xff5252)
+      g.fillRoundedRect(-w / 2 + 3, h / 2 - 4, 8, 4, 2)
+      g.fillRoundedRect(w / 2 - 11, h / 2 - 4, 8, 4, 2)
+    }
+
     return this.add.container(0, 0, [shadow, g])
   }
 
@@ -1182,6 +1317,7 @@ export class ScenarioScene extends Phaser.Scene {
     this.hasBusLane = scenario.busLane === true
     this.hasNarrowRoad = scenario.narrowRoad === true
     this.hasCrosswalk = scenario.crosswalk === true
+    this.roadComplexity = scenario.roadComplexity ?? 'simple'
 
     this.tweens.killTweensOf(this.car)
 
@@ -1377,7 +1513,7 @@ export class ScenarioScene extends Phaser.Scene {
       if (!obj.visible) continue
       const isPed = def.type === 'pedestrian'
       if (isPed && this.speed <= STOP_EPS) continue
-      const r = isPed ? NPC_PED_R : NPC_CAR_R
+      const r = this.npcRadius(def)
       if (Math.hypot(this.car.x - obj.x, this.car.y - obj.y) < CAR_R + r) {
         return this.resolve('collision')
       }
@@ -1427,7 +1563,15 @@ export class ScenarioScene extends Phaser.Scene {
     if (elapsed > 250 && this.isOffRoad(roadType)) return this.resolve('off_road')
 
     // 6) Timeout
-    if (elapsed > 28000) return this.resolve('timeout')
+    if (elapsed > (this.scenario!.timeLimitMs ?? DEFAULT_TIME_LIMIT_MS)) return this.resolve('timeout')
+  }
+
+  private npcRadius(def: ScenarioNPC): number {
+    if (def.type === 'pedestrian') return NPC_PED_R
+    if (def.variant === 'bus' || def.variant === 'truck') return 24
+    if (def.variant === 'scooter') return 13
+    if (def.variant === 'kei') return 16
+    return NPC_CAR_R
   }
 
   private reachedGoal(roadType: RoadType): Maneuver | null {

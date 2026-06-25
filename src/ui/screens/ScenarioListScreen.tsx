@@ -25,6 +25,14 @@ const ROAD_LABEL: Record<string, Record<string, string>> = {
   highway:     { 'zh-TW': '高速公路', ja: '高速道路' },
 }
 
+type TrafficDensity = 'light' | 'normal' | 'busy'
+
+const TRAFFIC_LABEL: Record<TrafficDensity, Record<string, string>> = {
+  light:  { 'zh-TW': '車少', ja: '少なめ' },
+  normal: { 'zh-TW': '車流中等', ja: '普通' },
+  busy:   { 'zh-TW': '車多', ja: '多め' },
+}
+
 interface Props {
   mode: GameMode
   onSelect: (startIndex: number) => void
@@ -85,6 +93,11 @@ export function ScenarioListScreen({ mode, onSelect, onBack }: Props) {
               </div>
               <div className="text-xs text-gray-400 mt-0.5">
                 {ROAD_LABEL[s.roadType ?? 'cross']?.[lang] ?? ''}
+                {' · '}
+                {Math.round((s.timeLimitMs ?? 42000) / 1000)}
+                {lang === 'zh-TW' ? '秒' : '秒'}
+                {' · '}
+                {TRAFFIC_LABEL[s.trafficDensity ?? 'light']?.[lang]}
               </div>
             </div>
 
