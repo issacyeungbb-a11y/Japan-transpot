@@ -8,7 +8,10 @@ interface Props {
 
 export function DrivingControls({ disabled }: Props) {
   return (
-    <div className="flex items-center justify-between px-3 py-2 sm:px-5 sm:py-3 bg-[#0d1b2a]/95 border-t border-[#1A4E8C]/40 select-none">
+    <div
+      className="flex items-center justify-between px-3 py-2 sm:px-5 sm:py-3 bg-[#0d1b2a]/95 border-t border-[#1A4E8C]/40 select-none"
+      style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}
+    >
       {/* Steering — two tap buttons, large touch targets */}
       <div className="flex gap-2">
         <DriveButton k="left"  disabled={disabled} color="#1A4E8C" icon="◀" label="左轉" />

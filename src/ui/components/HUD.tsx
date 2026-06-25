@@ -19,13 +19,17 @@ export function HUD({ onBack }: HUDProps) {
   const difficulty = scenario?.difficulty ?? 1
 
   return (
-    <div className="flex items-center justify-between px-4 py-2 bg-[#0d1b2a]/90 border-b border-[#1A4E8C]/60 text-white text-sm font-medium select-none">
+    <div
+      className="flex items-center justify-between px-4 py-2 bg-[#0d1b2a]/90 border-b border-[#1A4E8C]/60 text-white text-sm font-medium select-none"
+      style={{ paddingTop: 'max(8px, env(safe-area-inset-top))' }}
+    >
       {/* Back button + Lives */}
       <div className="flex items-center gap-2 min-w-[80px]">
         {onBack && (
           <button
             onClick={onBack}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-gray-300 hover:text-white hover:bg-white/10 transition-colors border border-white/20 active:scale-95"
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-bold text-white transition-colors active:scale-95"
+            style={{ backgroundColor: '#1A4E8C', border: '1px solid #3A7ACC', minHeight: '36px' }}
             aria-label="返回目錄"
           >
             ← 目錄

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PhaserGame } from '../../game/PhaserGame'
 import { HUD } from '../components/HUD'
@@ -35,6 +35,8 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
 
   const sceneReadyRef = useRef(false)
   const pendingScenarioRef = useRef<Scenario | null>(null)
+  const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleNextRef = useRef<() => void>(() => {})
   const scenarioId = session?.scenarioIds[session.currentIndex]
   const currentScenario = scenarioId ? getScenarioById(scenarioId) : null
   const hasSession = Boolean(session)
@@ -125,6 +127,13 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
       if (result.isCorrect) {
         store.addScore(points)
         setPhase('success')
+        // Schedule advance directly — avoids timer being reset by React re-renders
+        // that happen when Zustand state (score/streak) updates.
+        if (autoAdvanceTimer.current !== null) clearTimeout(autoAdvanceTimer.current)
+        autoAdvanceTimer.current = setTimeout(() => {
+          autoAdvanceTimer.current = null
+          handleNextRef.current()
+        }, 2000)
       } else {
         if (s.mode !== 'study') store.loseLife()
         setPhase('feedback')
@@ -152,12 +161,17 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
     }
   }, [onSessionEnd])
 
-  // Auto-advance to the next scenario after a brief success celebration.
+  // Keep ref in sync so the auto-advance timer always calls the latest version.
+  useLayoutEffect(() => {
+    handleNextRef.current = handleNext
+  })
+
+  // Cancel the advance timer on unmount.
   useEffect(() => {
-    if (phase !== 'success') return
-    const timer = setTimeout(handleNext, 1400)
-    return () => clearTimeout(timer)
-  }, [phase, handleNext])
+    return () => {
+      if (autoAdvanceTimer.current !== null) clearTimeout(autoAdvanceTimer.current)
+    }
+  }, [])
 
   return (
     <div className="flex flex-col h-full bg-[#0d1b2a]">
@@ -193,7 +207,7 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
           </div>
         )}
 
-        {/* Success overlay — shown briefly before auto-advancing */}
+        {/* Success overlay — shown for 2 s before auto-advancing */}
         {phase === 'success' && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div
@@ -209,6 +223,7 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
               {pointsEarned > 0 && (
                 <div className="text-[#FF6B35] text-lg font-bold mt-1">+{pointsEarned} 分</div>
               )}
+              <div className="text-gray-400 text-xs mt-3 animate-pulse">自動進入下一關…</div>
             </div>
           </div>
         )}
