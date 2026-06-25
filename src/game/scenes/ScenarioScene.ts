@@ -75,7 +75,7 @@ const GOAL_LEFT_X   = CX - 160    // 240
 
 // ---- Physics ----
 const CRUISE_SPEED = 60   // start speed — 50 km/h equivalent
-const MAX_SPEED = 160     // ~133 km/h equivalent
+const MAX_SPEED = 120     // hard ceiling (~100 km/h) when no limit is posted
 const ACCEL = 55          // gradual throttle feel
 const BRAKE_DECEL = 320
 const COAST_FRICTION = 20 // gentle roll-off when off the throttle
@@ -92,8 +92,15 @@ const YIELD_CREEP_SPEED = 36
 const KMH_PER_PX = 50 / CRUISE_SPEED
 // How far over the posted limit (km/h) is tolerated, and for how long (ms),
 // before it counts as a speeding violation. A short overshoot is forgiven.
-const SPEED_TOLERANCE = 20
-const SPEED_GRACE_MS = 1100
+// The throttle is also capped per-scenario (see maxSpeedPx) at limit+THROTTLE_
+// HEADROOM, which is BELOW this tolerance — so simply holding the gas can never
+// trip a speeding fault; only a deliberate, sustained overshoot does.
+const SPEED_TOLERANCE = 22
+const SPEED_GRACE_MS = 1600
+// Holding the throttle settles the car this far (km/h) above the posted limit —
+// fast enough to feel responsive, slow enough to stay clear of a violation and
+// to never rush a stop line before the light turns.
+const THROTTLE_HEADROOM = 12
 
 // Wet road: brakes bite less (longer stopping distance) and grip drops.
 const RAIN_BRAKE_FACTOR = 0.55
@@ -143,6 +150,7 @@ export class ScenarioScene extends Phaser.Scene {
   // car kinematic state
   private speed = 0
   private heading = 0 // radians, 0 = north (up)
+  private maxSpeedPx = MAX_SPEED // throttle ceiling for the current scenario
 
   // evaluation state
   private driveStart = 0
@@ -1160,6 +1168,12 @@ export class ScenarioScene extends Phaser.Scene {
     this.hasStopped = false
     this.crossedLine = false
     this.speedLimit = scenario.speedLimit ?? 0
+    // Cap the throttle just above the posted limit so holding the gas settles at
+    // a safe speed instead of redlining — this is what stops the car from both
+    // speeding and rushing the stop line before the light turns green.
+    this.maxSpeedPx = this.speedLimit > 0
+      ? Math.max(CRUISE_SPEED, (this.speedLimit + THROTTLE_HEADROOM) / KMH_PER_PX)
+      : MAX_SPEED
     this.overspeedMs = 0
     this.raining = scenario.weather === 'rain'
     this.hasTollGate = scenario.tollGate === true
@@ -1283,7 +1297,12 @@ export class ScenarioScene extends Phaser.Scene {
     if (brake) {
       this.speed = Math.max(0, this.speed - brakeDecel * dt)
     } else if (throttle) {
-      this.speed = Math.min(MAX_SPEED, this.speed + ACCEL * dt)
+      // Accelerate toward the per-scenario ceiling. If already above it (only on
+      // very low limits, where the start speed exceeds the cap) just hold —
+      // never force an abrupt slowdown from the throttle itself.
+      if (this.speed < this.maxSpeedPx) {
+        this.speed = Math.min(this.maxSpeedPx, this.speed + ACCEL * dt)
+      }
     } else {
       this.speed = Math.max(0, this.speed - COAST_FRICTION * dt)
     }
