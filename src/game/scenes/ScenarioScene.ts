@@ -1507,33 +1507,75 @@ export class ScenarioScene extends Phaser.Scene {
     const isCorrect = reason === 'success'
     const timeMs = this.time.now - this.driveStart
 
+    // Show a camera-locked failure banner immediately so the player always knows
+    // EXACTLY what went wrong — before the React FeedbackModal even appears.
+    const failObjs: Phaser.GameObjects.GameObject[] = []
+    if (!isCorrect) {
+      const labels: Partial<Record<OutcomeReason, string>> = {
+        ran_red: '衝燈 / 未獲行進信號',
+        no_full_stop: '未完全停車（一時停止）',
+        failed_to_yield: '未讓行就進入危險區',
+        collision: '發生碰撞！',
+        speeding: '超速駕駛',
+        off_road: '偏離車道',
+        wrong_way: '方向錯誤',
+        timeout: '超時',
+        bus_lane: '禁入巴士專用線',
+      }
+      const cx = GAME_WIDTH / 2
+      const cy = GAME_HEIGHT / 2
+      const bw = 460, bh = 74
+
+      const bannerBg = this.add.graphics().setScrollFactor(0).setDepth(58)
+      bannerBg.fillStyle(0x110000, 0.94)
+      bannerBg.fillRoundedRect(cx - bw / 2, cy - bh / 2, bw, bh, 10)
+      bannerBg.lineStyle(2, 0xff3333, 1)
+      bannerBg.strokeRoundedRect(cx - bw / 2, cy - bh / 2, bw, bh, 10)
+
+      const bannerText = this.add
+        .text(cx, cy, `✗  ${labels[reason] ?? reason}`, {
+          fontFamily: 'sans-serif',
+          fontSize: '22px',
+          fontStyle: 'bold',
+          color: '#ff6666',
+          align: 'center',
+          wordWrap: { width: bw - 24 },
+        })
+        .setOrigin(0.5, 0.5)
+        .setScrollFactor(0)
+        .setDepth(59)
+
+      failObjs.push(bannerBg, bannerText)
+    }
+
+    const emit = () => {
+      failObjs.forEach((o) => o.destroy())
+      bridge.emit(PHASER_EVENTS.OUTCOME, { isCorrect, reason, timeMs })
+    }
+
     if (reason === 'collision') {
-      const overlay = this.add.rectangle(this.car.x, this.car.y, GAME_WIDTH * 2, GAME_HEIGHT * 2, 0xff0000, 0.35).setDepth(20)
-      this.cameras.main.shake(350, 0.018)
-      this.time.delayedCall(550, () => {
-        overlay.destroy()
-        bridge.emit(PHASER_EVENTS.OUTCOME, { isCorrect, reason, timeMs })
-      })
+      const flash = this.add
+        .rectangle(this.car.x, this.car.y, GAME_WIDTH * 2, GAME_HEIGHT * 2, 0xff0000, 0.30)
+        .setDepth(20)
+      this.cameras.main.shake(300, 0.012)
+      this.time.delayedCall(750, () => { flash.destroy(); emit() })
       return
     }
 
     if (isCorrect) {
-      const overlay = this.add.rectangle(this.car.x, this.car.y, GAME_WIDTH * 2, GAME_HEIGHT * 2, 0x00cc44, 0.25).setDepth(20)
+      const flash = this.add
+        .rectangle(this.car.x, this.car.y, GAME_WIDTH * 2, GAME_HEIGHT * 2, 0x00cc44, 0.25)
+        .setDepth(20)
       this.tweens.add({
-        targets: overlay,
+        targets: flash,
         alpha: 0,
         duration: 650,
-        onComplete: () => {
-          overlay.destroy()
-          bridge.emit(PHASER_EVENTS.OUTCOME, { isCorrect, reason, timeMs })
-        },
+        onComplete: () => { flash.destroy(); emit() },
       })
       return
     }
 
-    this.cameras.main.shake(220, 0.01)
-    this.time.delayedCall(420, () => {
-      bridge.emit(PHASER_EVENTS.OUTCOME, { isCorrect, reason, timeMs })
-    })
+    this.cameras.main.shake(180, 0.007)
+    this.time.delayedCall(700, () => { emit() })
   }
 }

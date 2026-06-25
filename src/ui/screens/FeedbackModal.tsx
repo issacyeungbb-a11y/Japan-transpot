@@ -27,12 +27,11 @@ export function FeedbackModal({ scenario, outcome, pointsEarned, onNext }: Props
           style={{ backgroundColor: isCorrect ? '#00C85322' : '#D32F2F22' }}
         >
           <div className="flex items-center gap-3">
-            <span className="text-3xl">{isCorrect ? '✓' : '✗'}</span>
+            <span className="text-4xl">{isCorrect ? '✓' : '✗'}</span>
             <div>
               <div className="text-xl font-bold" style={{ color: isCorrect ? '#00C853' : '#D32F2F' }}>
                 {isCorrect ? t('feedback.correct') : t('feedback.incorrect')}
               </div>
-              <div className="text-sm text-gray-300">{t(`reason.${outcome.reason}`)}</div>
               {isCorrect && pointsEarned > 0 && (
                 <div className="text-[#FF6B35] text-sm font-bold">+{pointsEarned} {t('hud.score')}</div>
               )}
@@ -40,6 +39,19 @@ export function FeedbackModal({ scenario, outcome, pointsEarned, onNext }: Props
           </div>
           {scenario.light && <TrafficLightSVG state={scenario.light} size={48} />}
         </div>
+
+        {/* Failure reason — shown prominently so the player always knows what went wrong */}
+        {!isCorrect && (
+          <div
+            className="px-6 py-3 border-b border-red-900/40"
+            style={{ background: 'linear-gradient(90deg, #2a0808 0%, #1a0505 100%)' }}
+          >
+            <div className="text-xs text-red-400 font-bold uppercase tracking-widest mb-1">失敗原因</div>
+            <div className="text-xl font-black" style={{ color: '#FF5252' }}>
+              {t(`reason.${outcome.reason}`)}
+            </div>
+          </div>
+        )}
 
         {/* Explanation */}
         <div className="px-6 py-4 border-b border-[#1A4E8C]/30">
