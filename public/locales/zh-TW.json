@@ -17,7 +17,8 @@
     "score": "得分",
     "lives": "生命",
     "timer": "秒",
-    "scenario": "情境"
+    "scenario": "情境",
+    "menu": "目錄"
   },
   "drive": {
     "get_ready": "準備好就出發！",

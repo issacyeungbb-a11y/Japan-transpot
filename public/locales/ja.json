@@ -17,7 +17,8 @@
     "score": "スコア",
     "lives": "ライフ",
     "timer": "秒",
-    "scenario": "シナリオ"
+    "scenario": "シナリオ",
+    "menu": "メニュー"
   },
   "drive": {
     "get_ready": "準備して出発！",

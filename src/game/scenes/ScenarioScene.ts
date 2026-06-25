@@ -75,8 +75,8 @@ const GOAL_LEFT_X   = CX - 160    // 240
 
 // ---- Physics ----
 const CRUISE_SPEED = 60   // start speed — 50 km/h equivalent
-const MAX_SPEED = 120     // hard ceiling (~100 km/h) when no limit is posted
-const ACCEL = 55          // gradual throttle feel
+const MAX_SPEED = 150     // hard ceiling when no limit is posted
+const ACCEL = 110         // responsive throttle — the gas pedal builds speed quickly
 const BRAKE_DECEL = 320
 const COAST_FRICTION = 20 // gentle roll-off when off the throttle
 const TURN_RATE = 2.5  // rad/s at full steering
@@ -97,10 +97,11 @@ const KMH_PER_PX = 50 / CRUISE_SPEED
 // trip a speeding fault; only a deliberate, sustained overshoot does.
 const SPEED_TOLERANCE = 22
 const SPEED_GRACE_MS = 1600
-// Holding the throttle settles the car this far (km/h) above the posted limit —
-// fast enough to feel responsive, slow enough to stay clear of a violation and
-// to never rush a stop line before the light turns.
-const THROTTLE_HEADROOM = 12
+// Holding the throttle settles the car this far (km/h) above the posted limit.
+// Kept just under SPEED_TOLERANCE (22) so simply holding the gas still can't
+// trip a speeding fault, but the car now has noticeably more headroom to pull
+// away and feel responsive rather than capped right at the limit.
+const THROTTLE_HEADROOM = 20
 
 // Wet road: brakes bite less (longer stopping distance) and grip drops.
 const RAIN_BRAKE_FACTOR = 0.55

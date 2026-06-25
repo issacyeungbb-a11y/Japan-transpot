@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { MainMenuScreen } from './ui/screens/MainMenuScreen'
 import { ScenarioListScreen } from './ui/screens/ScenarioListScreen'
 import { GameScreen } from './ui/screens/GameScreen'
@@ -12,38 +12,41 @@ type AppScreen = 'menu' | 'scenario-list' | 'game' | 'results'
 export function App() {
   const [screen, setScreen] = useState<AppScreen>('menu')
   const [selectedMode, setSelectedMode] = useState<GameMode>('study')
-  const { startSession } = useGameStore()
-  const session = useGameStore((s) => s.session)
+  const startSession = useGameStore((s) => s.startSession)
 
-  const handleModeSelect = (mode: GameMode) => {
+  const handleModeSelect = useCallback((mode: GameMode) => {
     setSelectedMode(mode)
     setScreen('scenario-list')
-  }
+  }, [])
 
-  const handleScenarioSelect = (startIndex: number) => {
+  const handleScenarioSelect = useCallback((startIndex: number) => {
     const scenarios = scenariosForMode(selectedMode)
     startSession(selectedMode, scenarios.map((s) => s.id), startIndex)
     setScreen('game')
-  }
+  }, [selectedMode, startSession])
 
-  const handleSessionEnd = () => {
+  // Stable references — GameScreen's effects depend on these, so recreating
+  // them on every App render (e.g. when the score updates) would spuriously
+  // restart the current scenario.
+  const handleSessionEnd = useCallback(() => {
     setScreen('results')
-  }
+  }, [])
 
-  const handleRestart = () => {
-    if (!session) { setScreen('menu'); return }
-    const scenarios = scenariosForMode(session.mode)
-    startSession(session.mode, scenarios.map((s) => s.id))
-    setScreen('game')
-  }
-
-  const handleMenu = () => {
-    setScreen('menu')
-  }
-
-  const handleBackToList = () => {
+  const handleBackToList = useCallback(() => {
     setScreen('scenario-list')
-  }
+  }, [])
+
+  const handleRestart = useCallback(() => {
+    const s = useGameStore.getState().session
+    if (!s) { setScreen('menu'); return }
+    const scenarios = scenariosForMode(s.mode)
+    startSession(s.mode, scenarios.map((sc) => sc.id))
+    setScreen('game')
+  }, [startSession])
+
+  const handleMenu = useCallback(() => {
+    setScreen('menu')
+  }, [])
 
   return (
     <div className="w-full h-full">
@@ -54,7 +57,7 @@ export function App() {
         <ScenarioListScreen
           mode={selectedMode}
           onSelect={handleScenarioSelect}
-          onBack={() => setScreen('menu')}
+          onBack={handleMenu}
         />
       )}
       {screen === 'game' && <GameScreen onSessionEnd={handleSessionEnd} onBack={handleBackToList} />}

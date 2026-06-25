@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useGameStore } from '../../store/gameStore'
 import type { Scenario, DrivingOutcome } from '../../data/types'
@@ -10,10 +11,35 @@ interface Props {
   onNext: () => void
 }
 
+// Seconds the player gets to read the failure feedback before it auto-advances.
+const AUTO_ADVANCE_SECONDS = 6
+
 export function FeedbackModal({ scenario, outcome, pointsEarned, onNext }: Props) {
   const { t } = useTranslation()
   const lang = useGameStore((s) => s.lang)
   const isCorrect = outcome.isCorrect
+
+  // Auto-advance to the next scenario after a countdown so the player never
+  // gets stuck on the feedback screen — the manual button still works too.
+  const [countdown, setCountdown] = useState(AUTO_ADVANCE_SECONDS)
+  const onNextRef = useRef(onNext)
+  onNextRef.current = onNext
+  useEffect(() => {
+    // Visual tick only — never trigger store updates from inside a setState
+    // updater (that runs during render and is illegal).
+    const tick = setInterval(() => {
+      setCountdown((c) => Math.max(0, c - 1))
+    }, 1000)
+    // Separate timer actually advances, called from a plain callback.
+    const advance = setTimeout(() => {
+      clearInterval(tick)
+      onNextRef.current()
+    }, AUTO_ADVANCE_SECONDS * 1000)
+    return () => {
+      clearInterval(tick)
+      clearTimeout(advance)
+    }
+  }, [])
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0">
@@ -89,8 +115,9 @@ export function FeedbackModal({ scenario, outcome, pointsEarned, onNext }: Props
             className="w-full py-3 rounded-2xl font-bold text-white text-base transition-all hover:scale-[1.02] active:scale-[0.98]"
             style={{ background: 'linear-gradient(135deg, #FF6B35, #1A4E8C)' }}
           >
-            {t('feedback.next')} →
+            {t('feedback.next')} → <span className="opacity-80 font-normal">({countdown})</span>
           </button>
+          <div className="text-center text-xs text-gray-400 mt-2">{countdown} 秒後自動進入下一關</div>
         </div>
       </div>
     </div>
