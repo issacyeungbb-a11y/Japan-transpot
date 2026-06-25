@@ -11,7 +11,7 @@ import { getScenarioById } from '../../data/scenarios'
 import { calcScore } from '../../data/trafficRules'
 import type { Scenario, BilingualText, Maneuver, DrivingOutcome } from '../../data/types'
 
-type GamePhase = 'loading' | 'ready' | 'driving' | 'feedback'
+type GamePhase = 'loading' | 'ready' | 'driving' | 'success' | 'feedback'
 
 interface Props {
   onSessionEnd: () => void
@@ -124,10 +124,11 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
       })
       if (result.isCorrect) {
         store.addScore(points)
-      } else if (s.mode !== 'study') {
-        store.loseLife()
+        setPhase('success')
+      } else {
+        if (s.mode !== 'study') store.loseLife()
+        setPhase('feedback')
       }
-      setPhase('feedback')
     }
     bridge.on(PHASER_EVENTS.OUTCOME, handler)
     return () => bridge.off(PHASER_EVENTS.OUTCOME, handler)
@@ -150,6 +151,13 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
       onSessionEnd()
     }
   }, [onSessionEnd])
+
+  // Auto-advance to the next scenario after a brief success celebration.
+  useEffect(() => {
+    if (phase !== 'success') return
+    const timer = setTimeout(handleNext, 1400)
+    return () => clearTimeout(timer)
+  }, [phase, handleNext])
 
   return (
     <div className="flex flex-col h-full bg-[#0d1b2a]">
@@ -184,9 +192,29 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
             <div className="text-white text-lg animate-pulse">Loading…</div>
           </div>
         )}
+
+        {/* Success overlay — shown briefly before auto-advancing */}
+        {phase === 'success' && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div
+              className="px-10 py-7 rounded-3xl text-center"
+              style={{
+                background: 'linear-gradient(135deg, #003a1a 0%, #005c28 100%)',
+                border: '2px solid #00C853',
+                boxShadow: '0 0 48px #00C85350',
+              }}
+            >
+              <div className="text-5xl mb-2">✓</div>
+              <div className="text-2xl font-black text-white">成功通過！</div>
+              {pointsEarned > 0 && (
+                <div className="text-[#FF6B35] text-lg font-bold mt-1">+{pointsEarned} 分</div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Controls (disabled until the car starts) */}
+      {/* Controls (active only while actually driving) */}
       <DrivingControls disabled={phase !== 'driving'} />
 
       {phase === 'feedback' && outcome && currentScenario && (
