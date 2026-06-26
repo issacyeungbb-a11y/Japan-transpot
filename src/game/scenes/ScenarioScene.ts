@@ -1316,10 +1316,10 @@ export class ScenarioScene extends Phaser.Scene {
     const roadType: RoadType = scenario.roadType ?? 'cross'
     this.buildRoad(roadType, scenario.maneuver)
     this.resetCarToSpawn(roadType)
-    // Reset look-ahead and snap camera so it doesn't lag on the first frame.
-    // With followOffset.y=150, at spawn scrollY = 940-150-225=565 → clamped to 550
-    // (world bottom). Camera shows world y=[550,1000], light at y=580 is visible.
-    this.cameras.main.followOffset.y = 150
+    // Reset look-ahead, lerp, and snap camera so scenario starts cleanly.
+    // followOffset.y=105 → car at screen y=330 (73% down); camera shows road ahead.
+    this.cameras.main.followOffset.y = 105
+    this.cameras.main.setLerp(1, 1)
     const spawnX = this.spawnLaneX(roadType)
     this.cameras.main.setScroll(spawnX - GAME_WIDTH / 2, WORLD_HEIGHT - GAME_HEIGHT)
 
@@ -1402,13 +1402,27 @@ export class ScenarioScene extends Phaser.Scene {
     this.evaluate(elapsed, dt)
   }
 
-  // Show more road ahead the faster the car goes (positive followOffset.y = more ahead).
+  // Camera tracks car speed: faster speed → more road visible ahead + snappier response.
+  // followOffset.y formula: car screen y = height/2 + offset → must stay < 450
+  // Safe range: offset 80..190 → car screen y 305..415 (68%..92%)
   private updateCamera(dt: number) {
-    const BASE_AHEAD = 150
-    const EXTRA_AHEAD = 100
-    const targetOffset = BASE_AHEAD + (this.speed / MAX_SPEED) * EXTRA_AHEAD
+    const speedFraction = Phaser.Math.Clamp(this.speed / MAX_SPEED, 0, 1)
     const cam = this.cameras.main
-    cam.followOffset.y = Phaser.Math.Linear(cam.followOffset.y, targetOffset, Math.min(1, dt * 4))
+
+    // Look-ahead: at rest car sits at 73% down; at 150 km/h it drops to 91%,
+    // revealing ~70 extra world-px of road rushing toward the intersection.
+    const targetOffset = 105 + speedFraction * 80   // 105 → 185 (never exceeds 190)
+    // Snap look-ahead forward instantly when flooring it; ease back gently on coast.
+    const accelerating = this.speed > (cam.followOffset.y - 105) / 80 * MAX_SPEED - 5
+    const lerpRate = accelerating ? (6 + speedFraction * 12) : 3
+    cam.followOffset.y = Phaser.Math.Linear(
+      cam.followOffset.y, targetOffset, Math.min(1, dt * lerpRate),
+    )
+
+    // Spring position lerp: at full throttle the camera trails the car by ~80 ms,
+    // so the car visibly surges ahead before the view catches up — WOO effect.
+    const posLerp = 1 - speedFraction * 0.35   // 1.0 at stop → 0.65 at 150 km/h
+    cam.setLerp(1, posLerp)
   }
 
   private readInput() {
