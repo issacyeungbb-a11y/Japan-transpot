@@ -91,17 +91,10 @@ const YIELD_CREEP_SPEED = 36
 // local limit — and full throttle tops out around 133 km/h.
 const KMH_PER_PX = 50 / CRUISE_SPEED
 // How far over the posted limit (km/h) is tolerated, and for how long (ms),
-// before it counts as a speeding violation. A short overshoot is forgiven.
-// The throttle is also capped per-scenario (see maxSpeedPx) at limit+THROTTLE_
-// HEADROOM, which is BELOW this tolerance — so simply holding the gas can never
-// trip a speeding fault; only a deliberate, sustained overshoot does.
+// before it counts as a speeding violation. A short overshoot is forgiven so a
+// brief burst of speed is fine — only sustained speeding fails the run.
 const SPEED_TOLERANCE = 22
-const SPEED_GRACE_MS = 1600
-// Holding the throttle settles the car this far (km/h) above the posted limit.
-// Kept just under SPEED_TOLERANCE (22) so simply holding the gas still can't
-// trip a speeding fault, but the car now has noticeably more headroom to pull
-// away and feel responsive rather than capped right at the limit.
-const THROTTLE_HEADROOM = 20
+const SPEED_GRACE_MS = 2600
 const DEFAULT_TIME_LIMIT_MS = 42000
 
 // Wet road: brakes bite less (longer stopping distance) and grip drops.
@@ -1304,12 +1297,11 @@ export class ScenarioScene extends Phaser.Scene {
     this.hasStopped = false
     this.crossedLine = false
     this.speedLimit = scenario.speedLimit ?? 0
-    // Cap the throttle just above the posted limit so holding the gas settles at
-    // a safe speed instead of redlining — this is what stops the car from both
-    // speeding and rushing the stop line before the light turns green.
-    this.maxSpeedPx = this.speedLimit > 0
-      ? Math.max(CRUISE_SPEED, (this.speedLimit + THROTTLE_HEADROOM) / KMH_PER_PX)
-      : MAX_SPEED
+    // The throttle always pulls to the full top speed (150 km/h) — the player
+    // has real control of the gas. Posted limits no longer cap the throttle;
+    // they're shown on the sign and enforced by the speeding check, so it's the
+    // driver's job to ease off, just like real driving.
+    this.maxSpeedPx = MAX_SPEED
     this.overspeedMs = 0
     this.raining = scenario.weather === 'rain'
     this.hasTollGate = scenario.tollGate === true
