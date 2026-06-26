@@ -137,13 +137,20 @@ function intersectionTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
     npcs.push(vehicle('ambient-oncoming-taxi', 'taxi', SB_X, CY - 400, SB_X, CY + 380, 135, 3900, 0xffc107))
   }
 
-  if (scenario.evaluation.mustStop || scenario.light === null || scenario.category === 'priority') {
+  // Cross-street vehicles only where the player has NO protected green. At a
+  // signalised junction the cross street is red while the player is green (or
+  // turns green), so cross traffic must never occupy the player's path — that
+  // would be an unfair T-bone. Cross traffic is realistic only at stop signs,
+  // unsignalised/flashing junctions, and priority-road crossings, where the
+  // player is taught to yield.
+  if (!playerGetsGreen(scenario)) {
     npcs.push(vehicle('ambient-cross-truck', 'truck', -60, CROSS_Y, 860, CROSS_Y, 130, 2500, 0x78909c))
-  } else if (count >= 2) {
-    npcs.push(vehicle('ambient-cross-scooter', 'scooter', 860, CROSS_Y - 10, -60, CROSS_Y - 10, 120, 6800, 0xff7043))
   }
 
-  if (count >= 3 && scenario.category !== 'pedestrian') {
+  // An ambient pedestrian crossing the player's approach is a yield lesson for
+  // turning drivers. On a straight-through green the parallel crosswalk has its
+  // own signal, so don't drop a crosser into the path of a straight driver.
+  if (count >= 3 && scenario.category !== 'pedestrian' && scenario.maneuver !== 'straight') {
     npcs.push({
       id: 'ambient-crosswalk-tourist',
       type: 'pedestrian',
@@ -158,6 +165,16 @@ function intersectionTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
   }
 
   return npcs
+}
+
+// True when the player crosses on a protected green: a standard green now, or a
+// signal that turns green during the scenario (red→green wait). In these cases
+// the cross street is red and must not send traffic across the player's path.
+function playerGetsGreen(scenario: Scenario): boolean {
+  const isGreen = (s: Scenario['light']): boolean =>
+    s != null && s.type === 'standard' && s.color === 'green'
+  if (isGreen(scenario.light)) return true
+  return (scenario.lightChanges ?? []).some((change) => isGreen(change.state))
 }
 
 function needsVehicleYield(scenario: Scenario): boolean {

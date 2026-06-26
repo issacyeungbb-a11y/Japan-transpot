@@ -1452,7 +1452,12 @@ export class ScenarioScene extends Phaser.Scene {
 
     if (this.speed > STOP_EPS) {
       const steer = (right ? 1 : 0) - (left ? 1 : 0)
-      const speedFactor = Math.min(1, this.speed / (CRUISE_SPEED * 2))
+      // Keep the world-space turn radius (~48px) constant despite the speed
+      // rescale: radius = speed / (TURN_RATE * speedFactor). Dividing by
+      // CRUISE_SPEED makes speedFactor reach 1 at cruise, so a 90° turn still
+      // fits inside the 80px-wide road. (Earlier this divided by CRUISE_SPEED*2,
+      // which doubled the radius to ~96px and threw the car off the road.)
+      const speedFactor = Math.min(1, this.speed / CRUISE_SPEED)
       const turnRate = this.raining ? TURN_RATE * RAIN_TURN_FACTOR : TURN_RATE
       this.heading += steer * turnRate * speedFactor * dt
     }
