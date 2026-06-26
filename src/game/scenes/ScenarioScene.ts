@@ -75,8 +75,8 @@ const GOAL_LEFT_X   = CX - 160    // 240
 
 // ---- Physics ----
 const CRUISE_SPEED = 60   // start speed — 50 km/h equivalent
-const MAX_SPEED = 200     // hard ceiling when no limit is posted
-const ACCEL = 200         // snappy throttle — speed builds in proportion to how hard the gas is held
+const MAX_SPEED = 180     // hard ceiling when no limit is posted — 150 km/h on the speedometer
+const ACCEL = 300         // aggressive throttle — reaches top speed within ~0.5s of pressing
 const BRAKE_DECEL = 320
 const COAST_FRICTION = 20 // gentle roll-off when off the throttle
 const TURN_RATE = 2.5  // rad/s at full steering
