@@ -74,21 +74,21 @@ const GOAL_RIGHT_X  = CX + 160    // 560
 const GOAL_LEFT_X   = CX - 160    // 240
 
 // ---- Physics ----
-const CRUISE_SPEED = 60   // start speed — 50 km/h equivalent
-const MAX_SPEED = 96      // hard ceiling — 80 km/h on the speedometer (80 / KMH_PER_PX ≈ 96 px/s)
-const ACCEL = 300         // aggressive throttle — reaches top speed within ~0.5s of pressing
+const CRUISE_SPEED = 120  // start speed — 50 km/h equivalent
+const MAX_SPEED = 192     // hard ceiling — 80 km/h on the speedometer (80 / KMH_PER_PX = 192 px/s)
+const ACCEL = 70          // gentle throttle — takes ~7 short presses from cruise to reach 80 km/h
 const BRAKE_DECEL = 320
-const COAST_FRICTION = 20 // gentle roll-off when off the throttle
+const COAST_FRICTION = 50 // moderate roll-off; coasts to a stop from max in ~4s
 const TURN_RATE = 2.5  // rad/s at full steering
 const STOP_EPS = 12       // speed threshold (px/s) that counts as "fully stopped"
 // Below this speed (≈30 km/h) the player is treated as crawling/yielding, so a
 // careful driver who slows right down for a pedestrian or priority car is never
 // failed for "not yielding". Only barrelling through at speed is punished.
-const YIELD_CREEP_SPEED = 36
+const YIELD_CREEP_SPEED = 72
 
 // World px → km/h so the speedometer reads like a real car.
-// Chosen so the natural cruise (60 px/s) shows 50 km/h — the common Okinawa
-// local limit — and full throttle tops out around 133 km/h.
+// Chosen so the natural cruise (120 px/s) shows 50 km/h — the common Okinawa
+// local limit — and full throttle tops out at 80 km/h.
 const KMH_PER_PX = 50 / CRUISE_SPEED
 // How far over the posted limit (km/h) is tolerated, and for how long (ms),
 // before it counts as a speeding violation. A short overshoot is forgiven so a
@@ -1452,7 +1452,7 @@ export class ScenarioScene extends Phaser.Scene {
 
     if (this.speed > STOP_EPS) {
       const steer = (right ? 1 : 0) - (left ? 1 : 0)
-      const speedFactor = Math.min(1, this.speed / 120)
+      const speedFactor = Math.min(1, this.speed / (CRUISE_SPEED * 2))
       const turnRate = this.raining ? TURN_RATE * RAIN_TURN_FACTOR : TURN_RATE
       this.heading += steer * turnRate * speedFactor * dt
     }
