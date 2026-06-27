@@ -37,7 +37,7 @@ export function enhanceScenario(scenario: Scenario): Scenario {
     ...scenario,
     trafficDensity,
     roadComplexity,
-    safetyCheck: scenario.safetyCheck ?? defaultSafetyCheck(scenario),
+    safetyCheck: scenario.safetyCheck,
     timeLimitMs: scenario.timeLimitMs ?? defaultTimeLimitMs(scenario, trafficDensity),
     npcs,
     evaluation: {
@@ -46,11 +46,6 @@ export function enhanceScenario(scenario: Scenario): Scenario {
       yieldToVehicles: scenario.evaluation.yieldToVehicles ?? (hasVehicleYield || undefined),
     },
   }
-}
-
-function defaultSafetyCheck(scenario: Scenario): Scenario['safetyCheck'] {
-  if (scenario.maneuver !== 'left') return undefined
-  return { blindSpotLeft: true, windowMs: { from: 0, to: 9000 } }
 }
 
 function defaultTrafficDensity(scenario: Scenario): TrafficDensity {

@@ -1892,7 +1892,7 @@ export class ScenarioScene extends Phaser.Scene {
     if (side === 'right' && !check.blindSpotRight && !check.mirror) return true
     const windowMs = check.windowMs
     if (!windowMs) return true
-    return elapsed >= windowMs.from && elapsed <= windowMs.to
+    return elapsed >= windowMs.from
   }
 
   private clearGlanceInset() {
@@ -2058,19 +2058,23 @@ export class ScenarioScene extends Phaser.Scene {
     const check = scenario?.safetyCheck
     if (!scenario || !check) return null
 
-    const nearDecisionPoint = this.car.y <= STOP_LINE_Y + 36
-    const turningLeft = scenario.maneuver === 'left' && (this.heading < -0.12 || nearDecisionPoint)
-    const turningRight = scenario.maneuver === 'right' && (this.heading > 0.12 || nearDecisionPoint)
+    const inTurnZone = this.inSafetyTurnZone()
+    const turningLeft = scenario.maneuver === 'left' && this.heading < -0.18 && inTurnZone
+    const turningRight = scenario.maneuver === 'right' && this.heading > 0.18 && inTurnZone
 
     if (check.blindSpotLeft && turningLeft && !this.safetyCheckedLeft) {
-      return this.hasBlindSpotThreat('left') && this.heading < -0.12 ? 'failed_to_yield' : 'no_safety_check'
+      return this.hasBlindSpotThreat('left') ? 'failed_to_yield' : null
     }
 
     if (check.blindSpotRight && turningRight && !this.safetyCheckedRight) {
-      return this.hasBlindSpotThreat('right') && this.heading > 0.12 ? 'failed_to_yield' : 'no_safety_check'
+      return this.hasBlindSpotThreat('right') ? 'failed_to_yield' : null
     }
 
     return null
+  }
+
+  private inSafetyTurnZone(): boolean {
+    return this.crossedLine || (this.car.y <= STOP_LINE_Y + 8 && this.car.y >= CY - INT / 2 - 70)
   }
 
   private npcRadius(def: ScenarioNPC): number {
