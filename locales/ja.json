@@ -4,12 +4,8 @@
     "subtitle": "日本の道路ルールシミュレーション"
   },
   "menu": {
-    "study": "学習モード",
-    "study_desc": "ライフ無限・基礎ルールを段階的に学ぶ",
-    "normal": "ノーマルモード",
-    "normal_desc": "ライフ3回・難易度ミックス・歩行者＆曲がり角も",
-    "challenge": "チャレンジモード",
-    "challenge_desc": "ライフ1回・繁忙交差点＋高速道路に挑戦",
+    "practice": "運転練習",
+    "practice_desc": "沖縄の24場面・ライフ制なし・判断力を重点練習",
     "start": "ゲームスタート",
     "how_to_play": "遊び方",
     "start_desc": "沖縄のリアル24コース・ライフ無限"
@@ -37,6 +33,9 @@
     "off_road": "車線を外れました",
     "speeding": "速度超過です",
     "bus_lane": "バス専用レーンに進入",
+    "no_safety_check": "安全確認不足",
+    "failed_to_slow": "徐行できていません",
+    "illegal_overtake": "追越し違反",
     "timeout": "時間内に完了できませんでした"
   },
   "feedback": {
