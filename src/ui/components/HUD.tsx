@@ -13,7 +13,6 @@ export function HUD({ onBack }: HUDProps) {
 
   const total = session.scenarioIds.length
   const current = session.currentIndex + 1
-  const lives = session.mode === 'study' ? null : session.lives
   const scenarioId = session.scenarioIds[session.currentIndex]
   const scenario = ALL_SCENARIOS.find((s) => s.id === scenarioId)
   const difficulty = scenario?.difficulty ?? 1
@@ -42,17 +41,7 @@ export function HUD({ onBack }: HUDProps) {
 
       {/* Everything else, right-aligned, allowed to shrink so it never overlaps the button */}
       <div className="flex-1 min-w-0 flex items-center justify-end gap-3 overflow-hidden">
-        {lives !== null ? (
-          <div className="flex gap-0.5 flex-shrink-0">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <span key={i} className={i < lives ? 'text-red-400' : 'text-gray-600'}>
-                ♥
-              </span>
-            ))}
-          </div>
-        ) : (
-          <span className="text-[#FF6B35] text-sm flex-shrink-0">∞</span>
-        )}
+        <span className="text-[#FF6B35] text-sm flex-shrink-0">∞</span>
 
         <div className="text-[#FF6B35] font-bold text-sm sm:text-base whitespace-nowrap truncate">
           {t('hud.score')}: {session.score.toLocaleString()}

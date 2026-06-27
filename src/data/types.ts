@@ -87,7 +87,6 @@ export interface ScenarioEvaluation {
 }
 
 export type RoadType = 'cross' | 't-junction' | 'straight' | 'highway'
-export type GameMode = 'study' | 'normal' | 'challenge'
 
 export interface Scenario {
   id: string
@@ -99,8 +98,6 @@ export interface Scenario {
   maneuver: Maneuver
   // Road layout; defaults to 'cross' when omitted.
   roadType?: RoadType
-  // Which game modes include this scenario; omit to include in all modes.
-  modes?: GameMode[]
   // Scenario timeout. Longer, busier levels use more time so the player can
   // practise waiting, scanning, and completing the manoeuvre calmly.
   timeLimitMs?: number
@@ -155,11 +152,9 @@ export interface DrivingOutcome {
 }
 
 export interface GameSession {
-  mode: 'study' | 'normal' | 'challenge'
   scenarioIds: string[]
   currentIndex: number
   score: number
-  lives: number
   streak: number
   answers: AnswerRecord[]
 }

@@ -114,7 +114,7 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
       const s = store.session
       if (!s || !currentScenario) return
 
-      const points = s.mode !== 'study' ? calcScore(result.isCorrect, s.streak, currentScenario.difficulty) : 0
+      const points = calcScore(result.isCorrect, s.streak, currentScenario.difficulty)
       setPointsEarned(points)
       setOutcome(result)
 
@@ -135,7 +135,6 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
           handleNextRef.current()
         }, 2000)
       } else {
-        if (s.mode !== 'study') store.loseLife()
         setPhase('feedback')
       }
     }
@@ -150,11 +149,6 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
     resetInputState()
     bridge.emit(REACT_EVENTS.NEXT_SCENARIO)
 
-    // out of lives → end session
-    if (s.mode !== 'study' && s.lives <= 0) {
-      onSessionEnd()
-      return
-    }
     store.nextScenario()
     if (s.currentIndex + 1 >= s.scenarioIds.length) {
       onSessionEnd()

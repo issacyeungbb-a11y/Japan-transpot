@@ -4,26 +4,22 @@ import { ScenarioListScreen } from './ui/screens/ScenarioListScreen'
 import { GameScreen } from './ui/screens/GameScreen'
 import { ResultsScreen } from './ui/screens/ResultsScreen'
 import { useGameStore } from './store/gameStore'
-import { scenariosForMode } from './data/scenariosForMode'
-import type { GameMode } from './data/types'
+import { allScenarios } from './data/allScenarios'
 
 type AppScreen = 'menu' | 'scenario-list' | 'game' | 'results'
 
 export function App() {
   const [screen, setScreen] = useState<AppScreen>('menu')
-  const [selectedMode, setSelectedMode] = useState<GameMode>('study')
   const startSession = useGameStore((s) => s.startSession)
 
-  const handleModeSelect = useCallback((mode: GameMode) => {
-    setSelectedMode(mode)
+  const handleStart = useCallback(() => {
     setScreen('scenario-list')
   }, [])
 
   const handleScenarioSelect = useCallback((startIndex: number) => {
-    const scenarios = scenariosForMode(selectedMode)
-    startSession(selectedMode, scenarios.map((s) => s.id), startIndex)
+    startSession(allScenarios().map((s) => s.id), startIndex)
     setScreen('game')
-  }, [selectedMode, startSession])
+  }, [startSession])
 
   // Stable references — GameScreen's effects depend on these, so recreating
   // them on every App render (e.g. when the score updates) would spuriously
@@ -37,10 +33,7 @@ export function App() {
   }, [])
 
   const handleRestart = useCallback(() => {
-    const s = useGameStore.getState().session
-    if (!s) { setScreen('menu'); return }
-    const scenarios = scenariosForMode(s.mode)
-    startSession(s.mode, scenarios.map((sc) => sc.id))
+    startSession(allScenarios().map((s) => s.id))
     setScreen('game')
   }, [startSession])
 
@@ -51,11 +44,10 @@ export function App() {
   return (
     <div className="w-full h-full">
       {screen === 'menu' && (
-        <MainMenuScreen onModeSelect={handleModeSelect} />
+        <MainMenuScreen onStart={handleStart} />
       )}
       {screen === 'scenario-list' && (
         <ScenarioListScreen
-          mode={selectedMode}
           onSelect={handleScenarioSelect}
           onBack={handleMenu}
         />

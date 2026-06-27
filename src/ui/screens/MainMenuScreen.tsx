@@ -3,22 +3,17 @@ import { useTranslation } from 'react-i18next'
 import { useGameStore } from '../../store/gameStore'
 import { ALL_SCENARIOS } from '../../data/scenarios'
 import { LangToggle } from '../components/LangToggle'
-import type { GameMode } from '../../data/types'
 
 interface Props {
-  onModeSelect: (mode: GameMode) => void
+  onStart: () => void
 }
 
-export function MainMenuScreen({ onModeSelect }: Props) {
+export function MainMenuScreen({ onStart }: Props) {
   const { t } = useTranslation()
   const [showHowTo, setShowHowTo] = useState(false)
   const lang = useGameStore((s) => s.lang)
 
-  const counts = {
-    study:     ALL_SCENARIOS.filter((s) => !s.modes || s.modes.includes('study')).length,
-    normal:    ALL_SCENARIOS.filter((s) => !s.modes || s.modes.includes('normal')).length,
-    challenge: ALL_SCENARIOS.filter((s) => !s.modes || s.modes.includes('challenge')).length,
-  }
+  const total = ALL_SCENARIOS.length
 
   const title = lang === 'zh-TW' ? '沖繩交通挑戰' : '沖縄交通チャレンジ'
   const subtitle = lang === 'zh-TW' ? '日本道路規則模擬遊戲' : '日本の道路ルールシミュレーション'
@@ -53,32 +48,25 @@ export function MainMenuScreen({ onModeSelect }: Props) {
         </p>
       </div>
 
-      {/* Mode buttons */}
+      {/* Single start button */}
       <div className="relative z-10 flex flex-col gap-4 w-full max-w-xs px-6">
-        <ModeButton
-          icon="📖"
-          label={t('menu.study')}
-          desc={t('menu.study_desc')}
-          count={counts.study}
-          color="#1A4E8C"
-          onClick={() => onModeSelect('study')}
-        />
-        <ModeButton
-          icon="🚦"
-          label={t('menu.normal')}
-          desc={t('menu.normal_desc')}
-          count={counts.normal}
-          color="#FF6B35"
-          onClick={() => onModeSelect('normal')}
-        />
-        <ModeButton
-          icon="🏆"
-          label={t('menu.challenge')}
-          desc={t('menu.challenge_desc')}
-          count={counts.challenge}
-          color="#9C27B0"
-          onClick={() => onModeSelect('challenge')}
-        />
+        <button
+          onClick={onStart}
+          className="flex items-center gap-4 w-full px-5 py-5 rounded-2xl text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
+          style={{ backgroundColor: '#FF6B3522', border: '1px solid #FF6B3588' }}
+        >
+          <span className="text-3xl">🚦</span>
+          <div className="flex-1">
+            <div className="font-bold text-white text-lg">{t('menu.start')}</div>
+            <div className="text-xs text-gray-400">{t('menu.start_desc')}</div>
+          </div>
+          <span
+            className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+            style={{ backgroundColor: '#FF6B3533', color: '#FF6B35' }}
+          >
+            {total}關
+          </span>
+        </button>
 
         <button
           onClick={() => setShowHowTo(true)}
@@ -109,41 +97,5 @@ export function MainMenuScreen({ onModeSelect }: Props) {
         </div>
       )}
     </div>
-  )
-}
-
-function ModeButton({
-  icon,
-  label,
-  desc,
-  count,
-  color,
-  onClick,
-}: {
-  icon: string
-  label: string
-  desc: string
-  count: number
-  color: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-4 w-full px-5 py-4 rounded-2xl text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
-      style={{ backgroundColor: `${color}22`, border: `1px solid ${color}66` }}
-    >
-      <span className="text-2xl">{icon}</span>
-      <div className="flex-1">
-        <div className="font-bold text-white">{label}</div>
-        <div className="text-xs text-gray-400">{desc}</div>
-      </div>
-      <span
-        className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-        style={{ backgroundColor: `${color}33`, color }}
-      >
-        {count}關
-      </span>
-    </button>
   )
 }

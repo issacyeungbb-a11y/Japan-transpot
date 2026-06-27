@@ -1,6 +1,7 @@
+import { useTranslation } from 'react-i18next'
 import { useGameStore } from '../../store/gameStore'
-import { scenariosForMode } from '../../data/scenariosForMode'
-import type { GameMode, Scenario } from '../../data/types'
+import { allScenarios } from '../../data/allScenarios'
+import type { Scenario } from '../../data/types'
 
 const CATEGORY_ICON: Record<Scenario['category'], string> = {
   standard:   '🚦',
@@ -10,12 +11,6 @@ const CATEGORY_ICON: Record<Scenario['category'], string> = {
   priority:   '🛣️',
   oneway:     '↕️',
   speed:      '🚸',
-}
-
-const MODE_META: Record<GameMode, { icon: string; label: Record<string, string>; color: string }> = {
-  study:     { icon: '📖', label: { 'zh-TW': '學習模式', ja: '学習モード' },     color: '#1A4E8C' },
-  normal:    { icon: '🚦', label: { 'zh-TW': '一般模式', ja: 'ノーマルモード' }, color: '#FF6B35' },
-  challenge: { icon: '🏆', label: { 'zh-TW': '挑戰模式', ja: 'チャレンジモード' }, color: '#9C27B0' },
 }
 
 const ROAD_LABEL: Record<string, Record<string, string>> = {
@@ -34,16 +29,17 @@ const TRAFFIC_LABEL: Record<TrafficDensity, Record<string, string>> = {
 }
 
 interface Props {
-  mode: GameMode
   onSelect: (startIndex: number) => void
   onBack: () => void
 }
 
-export function ScenarioListScreen({ mode, onSelect, onBack }: Props) {
+const ACCENT = '#FF6B35'
+
+export function ScenarioListScreen({ onSelect, onBack }: Props) {
+  const { t } = useTranslation()
   const lang = useGameStore((s) => s.lang)
-  const meta = MODE_META[mode]
-  const scenarios = scenariosForMode(mode)
-  const color = meta.color
+  const scenarios = allScenarios()
+  const color = ACCENT
 
   return (
     <div className="flex flex-col h-full bg-[#0d1b2a] text-white overflow-hidden">
@@ -59,10 +55,8 @@ export function ScenarioListScreen({ mode, onSelect, onBack }: Props) {
         >
           ←
         </button>
-        <span className="text-xl">{meta.icon}</span>
-        <h2 className="font-bold text-base flex-1">
-          {lang === 'zh-TW' ? meta.label['zh-TW'] : meta.label['ja']}
-        </h2>
+        <span className="text-xl">🚦</span>
+        <h2 className="font-bold text-base flex-1">{t('list.all')}</h2>
         <span className="text-gray-400 text-sm">{scenarios.length}關</span>
       </div>
 
