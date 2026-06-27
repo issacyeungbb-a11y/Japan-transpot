@@ -249,12 +249,14 @@ export class ScenarioScene extends Phaser.Scene {
     this.addVignette()
 
     bridge.on(REACT_EVENTS.START_SCENARIO, this.onStartScenario)
+    bridge.on(REACT_EVENTS.START_DRIVING, this.onStartDriving)
     bridge.on(REACT_EVENTS.NEXT_SCENARIO, this.onNextScenario)
 
     // Use Phaser's own lifecycle event so cleanup is guaranteed when game.destroy() is called.
     // Defining a destroy() method on the class is NOT called automatically by Phaser.
     this.events.once('destroy', () => {
       bridge.off(REACT_EVENTS.START_SCENARIO, this.onStartScenario)
+      bridge.off(REACT_EVENTS.START_DRIVING, this.onStartDriving)
       bridge.off(REACT_EVENTS.NEXT_SCENARIO, this.onNextScenario)
     })
 
@@ -1527,22 +1529,24 @@ export class ScenarioScene extends Phaser.Scene {
       maneuver: scenario.maneuver,
     })
 
-    this.time.delayedCall(1700, () => {
-      if (this.phase !== 'ready') return
-      this.phase = 'drive'
-      this.speed = this.speedLimit > 0
-        ? Math.min(CRUISE_SPEED, this.speedLimit / KMH_PER_PX)
-        : CRUISE_SPEED
-      this.driveStart = this.time.now
+  }
 
-      scenario.lightChanges?.forEach((ch) => {
-        this.time.delayedCall(ch.atMs, () => {
-          if (this.phase === 'drive') this.applyLightState(ch.state)
-        })
+  private onStartDriving = () => {
+    const scenario = this.scenario
+    if (!scenario || this.phase !== 'ready') return
+    this.phase = 'drive'
+    this.speed = this.speedLimit > 0
+      ? Math.min(CRUISE_SPEED, this.speedLimit / KMH_PER_PX)
+      : CRUISE_SPEED
+    this.driveStart = this.time.now
+
+    scenario.lightChanges?.forEach((ch) => {
+      this.time.delayedCall(ch.atMs, () => {
+        if (this.phase === 'drive') this.applyLightState(ch.state)
       })
-
-      bridge.emit(PHASER_EVENTS.DRIVE_START)
     })
+
+    bridge.emit(PHASER_EVENTS.DRIVE_START)
   }
 
   private onNextScenario = () => {

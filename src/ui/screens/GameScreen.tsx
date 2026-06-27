@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PhaserGame } from '../../game/PhaserGame'
 import { HUD } from '../components/HUD'
@@ -11,7 +11,7 @@ import { getScenarioById } from '../../data/scenarios'
 import { calcScore } from '../../data/trafficRules'
 import type { Scenario, BilingualText, Maneuver, DrivingOutcome } from '../../data/types'
 
-type GamePhase = 'loading' | 'ready' | 'driving' | 'success' | 'feedback'
+type GamePhase = 'loading' | 'ready' | 'driving' | 'feedback'
 
 interface Props {
   onSessionEnd: () => void
@@ -35,8 +35,6 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
 
   const sceneReadyRef = useRef(false)
   const pendingScenarioRef = useRef<Scenario | null>(null)
-  const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const handleNextRef = useRef<() => void>(() => {})
   const swipeStartRef = useRef<{ x: number; y: number; t: number } | null>(null)
   const glancePulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const scenarioId = session?.scenarioIds[session.currentIndex]
@@ -128,17 +126,8 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
       })
       if (result.isCorrect) {
         store.addScore(points)
-        setPhase('success')
-        // Schedule advance directly — avoids timer being reset by React re-renders
-        // that happen when Zustand state (score/streak) updates.
-        if (autoAdvanceTimer.current !== null) clearTimeout(autoAdvanceTimer.current)
-        autoAdvanceTimer.current = setTimeout(() => {
-          autoAdvanceTimer.current = null
-          handleNextRef.current()
-        }, 2000)
-      } else {
-        setPhase('feedback')
       }
+      setPhase('feedback')
     }
     bridge.on(PHASER_EVENTS.OUTCOME, handler)
     return () => bridge.off(PHASER_EVENTS.OUTCOME, handler)
@@ -157,17 +146,16 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
     }
   }, [onSessionEnd])
 
-  // Keep ref in sync so the auto-advance timer always calls the latest version.
-  useLayoutEffect(() => {
-    handleNextRef.current = handleNext
-  })
-
-  // Cancel the advance timer on unmount.
+  // Cancel any temporary glance pulse on unmount.
   useEffect(() => {
     return () => {
-      if (autoAdvanceTimer.current !== null) clearTimeout(autoAdvanceTimer.current)
       if (glancePulseTimer.current !== null) clearTimeout(glancePulseTimer.current)
     }
+  }, [])
+
+  const handleStartDriving = useCallback(() => {
+    resetInputState()
+    bridge.emit(REACT_EVENTS.START_DRIVING)
   }, [])
 
   const pulseGlance = useCallback((side: 'glanceLeft' | 'glanceRight') => {
@@ -209,11 +197,17 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
 
         {/* Get-ready instruction overlay */}
         {phase === 'ready' && instruction && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="px-6 py-4 rounded-2xl bg-black/70 border border-[#FF6B35]/60 text-center animate-pulse">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/45 px-5">
+            <div className="w-full max-w-sm px-6 py-5 rounded-2xl bg-black/75 border border-[#FF6B35]/60 text-center">
               <div className="text-4xl mb-1">{MANEUVER_ICON[instruction.maneuver]}</div>
               <div className="text-white text-lg font-bold">{instruction.text[lang]}</div>
               <div className="text-[#FF6B35] text-xs mt-1">{t('drive.get_ready')}</div>
+              <button
+                onClick={handleStartDriving}
+                className="mt-4 w-full py-3 rounded-2xl bg-[#FF6B35] text-white font-bold active:scale-[0.98]"
+              >
+                {t('drive.start')}
+              </button>
             </div>
           </div>
         )}
@@ -234,26 +228,6 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
           </div>
         )}
 
-        {/* Success overlay — shown for 2 s before auto-advancing */}
-        {phase === 'success' && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div
-              className="px-10 py-7 rounded-3xl text-center"
-              style={{
-                background: 'linear-gradient(135deg, #003a1a 0%, #005c28 100%)',
-                border: '2px solid #00C853',
-                boxShadow: '0 0 48px #00C85350',
-              }}
-            >
-              <div className="text-5xl mb-2">✓</div>
-              <div className="text-2xl font-black text-white">成功通過！</div>
-              {pointsEarned > 0 && (
-                <div className="text-[#FF6B35] text-lg font-bold mt-1">+{pointsEarned} 分</div>
-              )}
-              <div className="text-gray-400 text-xs mt-3 animate-pulse">自動進入下一關…</div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Controls (active only while actually driving) */}

@@ -33,5 +33,6 @@ export const PHASER_EVENTS = {
 // Events emitted by React → consumed by Phaser
 export const REACT_EVENTS = {
   START_SCENARIO: 'react:startScenario',
+  START_DRIVING: 'react:startDriving',
   NEXT_SCENARIO: 'react:nextScenario',
 } as const

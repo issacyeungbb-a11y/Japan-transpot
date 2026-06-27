@@ -19,6 +19,7 @@
   },
   "drive": {
     "get_ready": "準備好就出發！",
+    "start": "確定，開始駕駛",
     "throttle": "油門",
     "brake": "煞車",
     "steer": "軚"
@@ -44,6 +45,8 @@
     "law": "相關法規",
     "common_mistake": "常見誤解",
     "next": "下一個",
+    "confirm_next": "確定，進入下一關",
+    "read_before_next": "睇完講解後，按確定先會繼續",
     "explanation": "講解"
   },
   "results": {

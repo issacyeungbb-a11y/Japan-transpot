@@ -19,6 +19,7 @@
   },
   "drive": {
     "get_ready": "準備して出発！",
+    "start": "確認して運転開始",
     "throttle": "アクセル",
     "brake": "ブレーキ",
     "steer": "ハンドル"
@@ -44,6 +45,8 @@
     "law": "関連法規",
     "common_mistake": "よくある間違い",
     "next": "次へ",
+    "confirm_next": "確認して次へ",
+    "read_before_next": "解説を読んでから確認を押すと進みます",
     "explanation": "解説"
   },
   "results": {

@@ -119,6 +119,7 @@ function ambientTrafficFor(
   if (roadType === 'highway' || roadType === 'merge') return highwayTraffic(count)
   if (roadType === 'roundabout') return roundaboutTraffic(count)
   if (roadType === 'straight') return straightRoadTraffic(scenario, count)
+  if (roadType === 't-junction') return tJunctionTraffic(scenario, count)
   return intersectionTraffic(scenario, count)
 }
 
@@ -167,13 +168,51 @@ function straightRoadTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
   return npcs
 }
 
+function approachCompanions(scenario: Scenario, count: number): ScenarioNPC[] {
+  const npcs: ScenarioNPC[] = []
+
+  if (scenario.maneuver !== 'left') {
+    npcs.push(vehicle('ambient-rear-scooter', 'scooter', NB_X - 34, 1020, NB_X - 34, 520, 82, 3400, 0xff7043, 'cruise'))
+  }
+
+  if (count >= 2 && scenario.maneuver === 'straight') {
+    npcs.push(vehicle('ambient-lead-kei', 'kei', NB_X, 730, NB_X, 230, 70, 0, 0x8bc34a, 'cruise'))
+  }
+
+  if (count >= 3 && scenario.roadType === 'multilane') {
+    npcs.push(vehicle('ambient-adjacent-car', 'car', CX - 18, 980, CX - 18, 260, 96, 1800, 0x42a5f5, 'cruise'))
+  }
+
+  return npcs
+}
+
+function tJunctionTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
+  const npcs: ScenarioNPC[] = approachCompanions(scenario, count)
+  const priorityBehavior: NpcBehavior = scenario.evaluation.yieldToVehicles ? 'aggressive' : 'cruise'
+
+  // A T-junction has no north arm in this game geometry. Do not spawn vertical
+  // "oncoming" traffic from the closed road; keep traffic on the horizontal
+  // main road unless the player's signal protects them.
+  if (!playerGetsGreen(scenario)) {
+    npcs.push(vehicle('ambient-main-road-car', 'car', -70, CROSS_Y, 870, CROSS_Y, 118, 1200, 0x26a69a, priorityBehavior))
+    if (count >= 2) {
+      npcs.push(vehicle('ambient-main-road-kei', 'kei', 870, CROSS_Y + 12, -70, CROSS_Y + 12, 98, 3300, 0xffc107, 'cruise'))
+    }
+  }
+
+  return npcs
+}
+
 function intersectionTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
   const priorityBehavior: NpcBehavior = scenario.evaluation.yieldToVehicles ? 'aggressive' : 'cruise'
-  const npcs: ScenarioNPC[] = [
-    vehicle('ambient-oncoming-kei', 'kei', SB_X, CY - 360, SB_X, CY + 360, 112, 1800, 0x26a69a, priorityBehavior),
-  ]
+  const npcs: ScenarioNPC[] = approachCompanions(scenario, count)
+  const protectedPlayerFlow = playerGetsGreen(scenario)
 
-  if (scenario.maneuver === 'right' || count >= 3) {
+  if (scenario.roadType !== 'uncontrolled') {
+    npcs.push(vehicle('ambient-oncoming-kei', 'kei', SB_X, CY - 360, SB_X, CY + 360, 112, 1800, 0x26a69a, priorityBehavior))
+  }
+
+  if (scenario.roadType !== 'uncontrolled' && (scenario.maneuver === 'right' || count >= 3)) {
     npcs.push(vehicle('ambient-oncoming-taxi', 'taxi', SB_X, CY - 400, SB_X, CY + 380, 135, 3900, 0xffc107, priorityBehavior))
   }
 
@@ -187,7 +226,7 @@ function intersectionTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
   // would be an unfair T-bone. Cross traffic is realistic only at stop signs,
   // unsignalised/flashing junctions, and priority-road crossings, where the
   // player is taught to yield.
-  if (!playerGetsGreen(scenario)) {
+  if (!protectedPlayerFlow) {
     npcs.push(vehicle('ambient-cross-truck', 'truck', -60, CROSS_Y, 860, CROSS_Y, 130, 2500, 0x78909c, priorityBehavior))
   }
 
@@ -216,7 +255,9 @@ function intersectionTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
 // the cross street is red and must not send traffic across the player's path.
 function playerGetsGreen(scenario: Scenario): boolean {
   const isGreen = (s: Scenario['light']): boolean =>
-    s != null && s.type === 'standard' && s.color === 'green'
+    s != null &&
+    ((s.type === 'standard' && s.color === 'green') ||
+      (s.type === 'arrow' && s.activeArrows.includes(scenario.maneuver)))
   if (isGreen(scenario.light)) return true
   return (scenario.lightChanges ?? []).some((change) => isGreen(change.state))
 }
