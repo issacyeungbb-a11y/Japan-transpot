@@ -26,7 +26,7 @@ npm run lint
 
 ## Scenarios
 
-Current content: 24 playable driving scenarios in one focused practice path.
+Current content: 27 playable driving scenarios in one focused practice path.
 
 | Theme | Examples | Law Reference |
 | --- | --- | --- |
@@ -36,16 +36,19 @@ Current content: 24 playable driving scenarios in one focused practice path.
 | Stop sign | mandatory full stop at unsignalised junction | 道路交通法第43条 |
 | Pedestrian / school zone | crosswalk yield, school-zone 30 km/h | 道路交通法第38条・第22条 |
 | Priority / narrow roads | priority road, narrow-road meeting | 道路交通法第36条・第18条 |
+| Okinawa judgement drills | roundabout yield, left-side priority, multilane right-turn lane | 道路交通法第35条の2・第36条・第37条 |
 | One-way / bus lane | one-way direction, Naha bus-only lane | 道路交通法第8条・第20条の2 |
 | Weather / expressway | rain, ETC toll gate, expressway lane discipline | 道路交通法第70条・第75条の4 |
 
 ## Realism Features
 
-- Single practice entry with all 24 scenarios available for repeated training.
+- Single practice entry with all 27 scenarios available for repeated training.
 - Live km/h speedometer and Japanese round speed-limit sign.
 - Speeding tolerance scales with the posted limit, so 30 km/h zones stay strict while expressways still allow tiny control overshoots.
 - ETC toll gate must be cleared at 20 km/h or below; arriving faster hits the barrier.
 - Scenario enhancer adds longer time limits, busier traffic, mixed vehicle types, and richer road markings.
+- Reactive NPC vehicles can cruise, brake, yield, behave aggressively, turn with indicators, or use deterministic random yielding.
+- New road geometry covers roundabouts and multilane junctions, with uncontrolled junction drills for left-side priority.
 - Blind-spot controls: hold `👀左後` or `👀右後`, or swipe on the game canvas, to check behind before turning.
 - Left-turn scenarios require left-rear blind-spot confirmation, with scooter traffic added to train 巻き込み awareness.
 - Weak-area analysis on the results screen tallies failure reasons and gives targeted practice advice.

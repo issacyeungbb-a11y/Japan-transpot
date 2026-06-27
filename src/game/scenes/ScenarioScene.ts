@@ -40,11 +40,13 @@ const CY = 520             // intersection centre in world coords
 
 const ROAD_W = 80
 const NARROW_ROAD_W = 56
+const MULTILANE_ROAD_W = 140
 const INT = 80  // intersection square half-side * 2
 
 // Japan left-hand traffic: player (northbound) keeps LEFT lane.
 const NB_LANE_X = CX - 20 // 380  (city roads)
 const NARROW_NB_X = CX - 14
+const MULTILANE_NB_X = CX - 52
 
 // Highway has two lanes per direction; player in left-half of left carriageway.
 const HIGHWAY_W      = 160  // total road width
@@ -55,6 +57,9 @@ const HIGHWAY_NB_X   = CX - 40 // 360 — player's lane centre on highway
 const BUS_ROAD_W   = 120
 const BUS_LANE_X   = CX - 30 // 370 — blue bus-only lane centre (left)
 const BUS_NORMAL_X = CX + 30 // 430 — normal lane centre (player keeps right)
+
+const ROUNDABOUT_OUTER_R = 112
+const ROUNDABOUT_INNER_R = 44
 
 // Stop line is south of the pedestrian crossing, south of the intersection.
 const STOP_LINE_Y = CY + INT / 2 + 50 // 610
@@ -107,6 +112,10 @@ const DEFAULT_TIME_LIMIT_MS = 42000
 const RAIN_BRAKE_FACTOR = 0.55
 const RAIN_TURN_FACTOR = 0.78
 
+const NPC_ACCEL = 120
+const NPC_BRAKE_DECEL = 260
+const NPC_STOP_SPEED = 6
+
 // ETC toll gate: line the player must cross at ETC crawl speed or hit the bar.
 const GATE_Y = 770
 const ETC_MAX_KMH = 20
@@ -117,6 +126,7 @@ const NPC_CAR_R = 14
 const NPC_PED_R = 8
 
 type Phase = 'idle' | 'ready' | 'drive' | 'done'
+type NpcVState = 'cruise' | 'braking' | 'stopped' | 'turning'
 
 function speedToleranceKmh(limit: number): number {
   return limit > 0 ? Math.max(MIN_SPEED_TOLERANCE_KMH, limit * SPEED_TOLERANCE_RATIO) : 0
@@ -131,6 +141,23 @@ function throttleHeadroomKmh(limit: number): number {
 interface NpcSprite {
   def: ScenarioNPC
   obj: Phaser.GameObjects.Container
+  lights?: NpcLights
+}
+
+interface NpcLights {
+  brakeLeft: Phaser.GameObjects.Rectangle
+  brakeRight: Phaser.GameObjects.Rectangle
+  signalLeft: Phaser.GameObjects.Rectangle
+  signalRight: Phaser.GameObjects.Rectangle
+}
+
+interface NpcMotionState {
+  vState: NpcVState
+  speed: number
+  x: number
+  y: number
+  segment: number
+  randomYields: boolean
 }
 
 export class ScenarioScene extends Phaser.Scene {
@@ -141,6 +168,7 @@ export class ScenarioScene extends Phaser.Scene {
   private lightLamp: Phaser.GameObjects.Graphics | null = null
   private lightHousing: Phaser.GameObjects.Graphics | null = null
   private npcs: NpcSprite[] = []
+  private npcStates = new Map<string, NpcMotionState>()
   private flashTimer: Phaser.Time.TimerEvent | null = null
   private stopSign: Phaser.GameObjects.Container | null = null
   private tollGate: Phaser.GameObjects.Container | null = null
@@ -251,8 +279,12 @@ export class ScenarioScene extends Phaser.Scene {
     // on top afterwards, so nothing can bleed onto the carriageway.
     this.drawScenery(g, roadType)
 
-    if (roadType === 'highway') {
+    if (roadType === 'highway' || roadType === 'merge') {
       this.drawHighwayRoad(g)
+    } else if (roadType === 'roundabout') {
+      this.drawRoundaboutRoad(g)
+    } else if (roadType === 'multilane') {
+      this.drawMultilaneRoad(g)
     } else if (roadType === 'straight') {
       if (this.hasBusLane) this.drawBusLaneRoad(g)
       else if (this.hasNarrowRoad) this.drawNarrowRoad(g)
@@ -330,6 +362,100 @@ export class ScenarioScene extends Phaser.Scene {
     g.fillStyle(ROAD_LINE)
     g.fillRect(CX - ROAD_W / 2, STOP_LINE_Y, ROAD_W, 4)
     if (this.hasCrosswalk) this.drawSouthCrosswalk(g, ROAD_W)
+  }
+
+  private drawRoundaboutRoad(g: Phaser.GameObjects.Graphics) {
+    const rOuter = ROUNDABOUT_OUTER_R
+    const rInner = ROUNDABOUT_INNER_R
+
+    g.fillStyle(SIDEWALK_COLOR)
+    g.fillRect(CX - ROAD_W / 2 - 8, 0, ROAD_W + 16, WORLD_HEIGHT)
+    g.fillRect(0, CY - ROAD_W / 2 - 8, GAME_WIDTH, ROAD_W + 16)
+
+    g.fillStyle(ROAD_COLOR)
+    g.fillRect(CX - ROAD_W / 2, 0, ROAD_W, WORLD_HEIGHT)
+    g.fillRect(0, CY - ROAD_W / 2, GAME_WIDTH, ROAD_W)
+    g.fillCircle(CX, CY, rOuter)
+
+    g.fillStyle(0x000000, 0.18)
+    g.fillCircle(CX + 3, CY + 4, rInner + 8)
+    g.fillStyle(GRASS_COLOR)
+    g.fillCircle(CX, CY, rInner)
+    g.fillStyle(0x2f6a27)
+    g.fillCircle(CX, CY, rInner - 10)
+
+    g.lineStyle(4, ROAD_LINE, 0.82)
+    g.strokeCircle(CX, CY, rOuter - 6)
+    g.lineStyle(3, ROAD_LINE, 0.55)
+    g.strokeCircle(CX, CY, rInner + 8)
+
+    g.fillStyle(ROAD_LINE)
+    g.fillRect(CX - ROAD_W / 2, STOP_LINE_Y, ROAD_W, 4)
+    this.drawSouthCrosswalk(g, ROAD_W)
+
+    g.fillStyle(0xffd54f, 0.86)
+    this.drawLeftArrow(g, CX - 52, CY + 72)
+    this.drawUpArrow(g, CX + 72, CY - 34)
+    this.drawRightArrow(g, CX + 48, CY + 72)
+
+    const label = this.add
+      .text(CX, CY, '環道\n優先', {
+        fontFamily: 'sans-serif',
+        fontSize: '13px',
+        fontStyle: 'bold',
+        color: '#ffffff',
+        align: 'center',
+      })
+      .setOrigin(0.5)
+      .setDepth(2)
+    this.busLabels.push(label)
+  }
+
+  private drawMultilaneRoad(g: Phaser.GameObjects.Graphics) {
+    const hw = MULTILANE_ROAD_W / 2
+
+    g.fillStyle(SIDEWALK_COLOR)
+    g.fillRect(CX - hw - 8, 0, MULTILANE_ROAD_W + 16, WORLD_HEIGHT)
+    g.fillRect(0, CY - hw - 8, GAME_WIDTH, MULTILANE_ROAD_W + 16)
+
+    g.fillStyle(ROAD_COLOR)
+    g.fillRect(CX - hw, 0, MULTILANE_ROAD_W, WORLD_HEIGHT)
+    g.fillRect(0, CY - hw, GAME_WIDTH, MULTILANE_ROAD_W)
+
+    g.fillStyle(INTERSECTION_COLOR)
+    g.fillRect(CX - hw, CY - hw, MULTILANE_ROAD_W, MULTILANE_ROAD_W)
+
+    g.fillStyle(0xffcc00)
+    g.fillRect(CX - 2, 0, 4, CY - hw)
+    g.fillRect(CX - 2, CY + hw, 4, WORLD_HEIGHT - CY - hw)
+    g.fillRect(0, CY - 2, CX - hw, 4)
+    g.fillRect(CX + hw, CY - 2, GAME_WIDTH - CX - hw, 4)
+
+    g.fillStyle(ROAD_LINE, 0.8)
+    for (let y = 18; y < CY - hw; y += 34) {
+      g.fillRect(CX - 36, y, 3, 20)
+      g.fillRect(CX + 33, y, 3, 20)
+    }
+    for (let y = CY + hw + 12; y < WORLD_HEIGHT; y += 34) {
+      g.fillRect(CX - 36, y, 3, 20)
+      g.fillRect(CX + 33, y, 3, 20)
+    }
+    for (let x = 20; x < CX - hw; x += 34) {
+      g.fillRect(x, CY - 36, 20, 3)
+      g.fillRect(x, CY + 33, 20, 3)
+    }
+    for (let x = CX + hw + 12; x < GAME_WIDTH; x += 34) {
+      g.fillRect(x, CY - 36, 20, 3)
+      g.fillRect(x, CY + 33, 20, 3)
+    }
+
+    g.fillStyle(ROAD_LINE)
+    g.fillRect(CX - hw, STOP_LINE_Y, hw, 4)
+    this.drawSouthCrosswalk(g, hw)
+
+    g.fillStyle(0xffd54f, 0.86)
+    this.drawRightArrow(g, CX - 18, STOP_LINE_Y + 110)
+    this.drawUpArrow(g, CX - 54, STOP_LINE_Y + 110)
   }
 
   private drawNarrowRoad(g: Phaser.GameObjects.Graphics) {
@@ -683,10 +809,12 @@ export class ScenarioScene extends Phaser.Scene {
   }
 
   private drawRoadComplexity(g: Phaser.GameObjects.Graphics, roadType: RoadType, maneuver: Maneuver) {
-    if (roadType === 'highway') {
+    if (roadType === 'highway' || roadType === 'merge') {
       this.drawHighwayMergeMarkings(g)
       return
     }
+
+    if (roadType === 'roundabout') return
 
     if (roadType === 'straight') {
       this.drawUrbanStraightMarkings(g)
@@ -1037,7 +1165,8 @@ export class ScenarioScene extends Phaser.Scene {
 
   // Northbound lane centre the player spawns in, depending on the road.
   private spawnLaneX(roadType: RoadType): number {
-    if (roadType === 'highway') return HIGHWAY_NB_X
+    if (roadType === 'highway' || roadType === 'merge') return HIGHWAY_NB_X
+    if (roadType === 'multilane') return MULTILANE_NB_X
     if (this.hasBusLane) return BUS_NORMAL_X
     if (this.hasNarrowRoad) return NARROW_NB_X
     return NB_LANE_X
@@ -1206,19 +1335,21 @@ export class ScenarioScene extends Phaser.Scene {
   private clearNPCs() {
     this.npcs.forEach((n) => n.obj.destroy())
     this.npcs = []
+    this.npcStates.clear()
   }
 
   private spawnNPCs(scenario: Scenario) {
     this.clearNPCs()
     scenario.npcs?.forEach((def) => {
       const obj = def.type === 'pedestrian' ? this.createPedestrian(def.color) : this.createNPCCar(def.color, def.variant)
+      const lights = def.type === 'vehicle' ? this.attachNpcIntentLights(obj, def.variant) : undefined
       obj.setPosition(def.startX, def.startY)
       if (def.type === 'vehicle') {
         obj.setRotation(Math.atan2(def.endX - def.startX, -(def.endY - def.startY)))
       }
       obj.setDepth(8)
       obj.setVisible(false)
-      this.npcs.push({ def, obj })
+      this.npcs.push({ def, obj, lights })
     })
   }
 
@@ -1239,6 +1370,22 @@ export class ScenarioScene extends Phaser.Scene {
     g.fillRect(-6, 5, 4, 12)
     g.fillRect(2, 5, 4, 12)
     return this.add.container(0, 0, [shadow, g])
+  }
+
+  private attachNpcIntentLights(
+    obj: Phaser.GameObjects.Container,
+    variant: ScenarioNPC['variant'] = 'car',
+  ): NpcLights {
+    const w = variant === 'bus' || variant === 'truck' ? 34 : variant === 'kei' ? 26 : variant === 'scooter' ? 16 : 30
+    const h = variant === 'bus' ? 76 : variant === 'truck' ? 64 : variant === 'kei' ? 42 : variant === 'scooter' ? 42 : 48
+    const brakeY = h / 2 - 3
+    const signalY = -h / 2 + 4
+    const brakeLeft = this.add.rectangle(-w / 2 + 7, brakeY, 8, 5, 0xff1744).setAlpha(0)
+    const brakeRight = this.add.rectangle(w / 2 - 7, brakeY, 8, 5, 0xff1744).setAlpha(0)
+    const signalLeft = this.add.rectangle(-w / 2 + 5, signalY, 7, 5, 0xffc107).setAlpha(0)
+    const signalRight = this.add.rectangle(w / 2 - 5, signalY, 7, 5, 0xffc107).setAlpha(0)
+    obj.add([brakeLeft, brakeRight, signalLeft, signalRight])
+    return { brakeLeft, brakeRight, signalLeft, signalRight }
   }
 
   private createNPCCar(color = 0xcc2222, variant: ScenarioNPC['variant'] = 'car'): Phaser.GameObjects.Container {
@@ -1420,7 +1567,7 @@ export class ScenarioScene extends Phaser.Scene {
 
     this.updateCar(dt)
     this.updateCamera(dt)
-    this.updateNPCs(elapsed)
+    this.updateNPCs(elapsed, dt)
     this.updateSpeedHud()
     this.updateRain(dt)
     this.updateBus(dt)
@@ -1497,18 +1644,224 @@ export class ScenarioScene extends Phaser.Scene {
     this.car.setRotation(this.heading)
   }
 
-  private updateNPCs(elapsed: number) {
-    this.npcs.forEach(({ def, obj }) => {
-      const t = elapsed - def.startAtMs
-      if (t < 0) { obj.setVisible(false); return }
-      obj.setVisible(true)
-      const dx = def.endX - def.startX
-      const dy = def.endY - def.startY
-      const dist = Math.hypot(dx, dy)
-      const progress = dist === 0 ? 1 : Math.min(1, (def.speed * t / 1000) / dist)
-      obj.x = def.startX + dx * progress
-      obj.y = def.startY + dy * progress
+  private updateNPCs(elapsed: number, dt: number) {
+    this.npcs.forEach((npc) => {
+      const behavior = npc.def.behavior ?? 'rail'
+      if (behavior === 'rail') this.updateRailNpc(npc, elapsed)
+      else this.updateReactiveNpc(npc, dt, elapsed)
     })
+  }
+
+  private updateRailNpc({ def, obj, lights }: NpcSprite, elapsed: number) {
+    const t = elapsed - def.startAtMs
+    if (t < 0) { obj.setVisible(false); return }
+    obj.setVisible(true)
+    const dx = def.endX - def.startX
+    const dy = def.endY - def.startY
+    const dist = Math.hypot(dx, dy)
+    const progress = dist === 0 ? 1 : Math.min(1, (def.speed * t / 1000) / dist)
+    obj.x = def.startX + dx * progress
+    obj.y = def.startY + dy * progress
+    if (lights) this.setNpcLights(lights, 'cruise', false, elapsed)
+  }
+
+  private updateReactiveNpc(npc: NpcSprite, dt: number, elapsed: number) {
+    const { def, obj } = npc
+    const t = elapsed - def.startAtMs
+    if (t < 0) {
+      obj.setVisible(false)
+      this.npcStates.delete(def.id)
+      return
+    }
+
+    obj.setVisible(true)
+    const state = this.npcStates.get(def.id) ?? this.createNpcState(def)
+    this.npcStates.set(def.id, state)
+
+    const path = this.npcPath(def)
+    const behavior = def.behavior ?? 'rail'
+    const shouldYieldToPlayer =
+      behavior === 'yield' ||
+      def.yieldsToPlayer === true ||
+      (behavior === 'random' && state.randomYields)
+    const shouldBrake =
+      this.npcHasForwardHazard(npc, state, path, behavior !== 'aggressive') ||
+      this.npcMustStopForSignal(state, path, def.reactionGap ?? 90) ||
+      (shouldYieldToPlayer && this.npcShouldYieldToPlayer(state, def.reactionGap ?? 90))
+
+    if (shouldBrake) {
+      state.speed = Math.max(0, state.speed - NPC_BRAKE_DECEL * dt)
+      state.vState = state.speed <= NPC_STOP_SPEED ? 'stopped' : 'braking'
+    } else {
+      state.speed = Math.min(def.speed, state.speed + NPC_ACCEL * dt)
+      state.vState = 'cruise'
+    }
+
+    const beforeX = state.x
+    const beforeY = state.y
+    const turning = this.moveNpcAlongPath(state, path, state.speed * dt)
+    if (!shouldBrake && turning) state.vState = 'turning'
+
+    obj.x = state.x
+    obj.y = state.y
+    const moved = Math.hypot(state.x - beforeX, state.y - beforeY) > 0.1
+    if (moved) obj.setRotation(Math.atan2(state.x - beforeX, -(state.y - beforeY)))
+
+    if (npc.lights) {
+      const signal = this.npcSignalDirection(def, state, path)
+      this.setNpcLights(npc.lights, state.vState, signal, elapsed)
+    }
+  }
+
+  private createNpcState(def: ScenarioNPC): NpcMotionState {
+    const randomSeed = def.randomSeed ?? this.hashString(def.id)
+    return {
+      vState: 'cruise',
+      speed: def.speed,
+      x: def.startX,
+      y: def.startY,
+      segment: 0,
+      randomYields: def.yieldsToPlayer ?? (this.seededUnit(randomSeed) >= 0.5),
+    }
+  }
+
+  private npcPath(def: ScenarioNPC): Array<{ x: number; y: number }> {
+    const start = { x: def.startX, y: def.startY }
+    const end = { x: def.endX, y: def.endY }
+    if (def.turnAt) return [start, def.turnAt, end]
+    return [start, end]
+  }
+
+  private moveNpcAlongPath(state: NpcMotionState, path: Array<{ x: number; y: number }>, distance: number): boolean {
+    let remaining = distance
+    let changedSegment = false
+    while (remaining > 0 && state.segment < path.length - 1) {
+      const target = path[state.segment + 1]
+      const dx = target.x - state.x
+      const dy = target.y - state.y
+      const dist = Math.hypot(dx, dy)
+      if (dist <= 0.001) {
+        state.segment += 1
+        changedSegment = true
+        continue
+      }
+      const step = Math.min(remaining, dist)
+      state.x += dx / dist * step
+      state.y += dy / dist * step
+      remaining -= step
+      if (step >= dist - 0.001) {
+        state.segment += 1
+        changedSegment = true
+      }
+    }
+    return changedSegment && state.segment > 0
+  }
+
+  private npcHasForwardHazard(
+    npc: NpcSprite,
+    state: NpcMotionState,
+    path: Array<{ x: number; y: number }>,
+    includePlayer: boolean,
+  ): boolean {
+    const direction = this.npcForwardVector(state, path)
+    const gap = npc.def.reactionGap ?? 90
+
+    if (includePlayer && this.pointAheadOfNpc(state, direction, this.car.x, this.car.y, gap, 30)) {
+      return true
+    }
+
+    return this.npcs.some((other) => {
+      if (other.def.id === npc.def.id || !other.obj.visible) return false
+      const lateral = other.def.type === 'pedestrian' ? 22 : 30
+      return this.pointAheadOfNpc(state, direction, other.obj.x, other.obj.y, gap * 0.82, lateral)
+    })
+  }
+
+  private npcForwardVector(state: NpcMotionState, path: Array<{ x: number; y: number }>) {
+    const target = path[Math.min(state.segment + 1, path.length - 1)]
+    const dx = target.x - state.x
+    const dy = target.y - state.y
+    const dist = Math.hypot(dx, dy) || 1
+    return { x: dx / dist, y: dy / dist }
+  }
+
+  private pointAheadOfNpc(
+    state: NpcMotionState,
+    direction: { x: number; y: number },
+    x: number,
+    y: number,
+    maxAhead: number,
+    maxLateral: number,
+  ): boolean {
+    const dx = x - state.x
+    const dy = y - state.y
+    const ahead = dx * direction.x + dy * direction.y
+    const lateral = Math.abs(dx * -direction.y + dy * direction.x)
+    return ahead > 0 && ahead < maxAhead && lateral < maxLateral
+  }
+
+  private npcMustStopForSignal(
+    state: NpcMotionState,
+    path: Array<{ x: number; y: number }>,
+    reactionGap: number,
+  ): boolean {
+    if (!this.currentLight || canCrossLine(this.currentLight, this.scenario?.maneuver ?? 'straight')) return false
+    const next = path[Math.min(state.segment + 1, path.length - 1)]
+    const sameApproach = Math.abs(state.x - NB_LANE_X) < 55 && state.y > STOP_LINE_Y
+    const crossingStopLine = next.y < STOP_LINE_Y
+    const distanceToStop = state.y - STOP_LINE_Y
+    return sameApproach && crossingStopLine && distanceToStop > 0 && distanceToStop < reactionGap + 35
+  }
+
+  private npcShouldYieldToPlayer(state: NpcMotionState, reactionGap: number): boolean {
+    if (this.phase !== 'drive') return false
+    const npcNearConflict = Math.hypot(state.x - CX, state.y - CY) < reactionGap + 70
+    const playerNearConflict = Math.hypot(this.car.x - CX, this.car.y - CY) < 165 || this.enteringConflictArea()
+    return npcNearConflict && playerNearConflict
+  }
+
+  private npcSignalDirection(
+    def: ScenarioNPC,
+    state: NpcMotionState,
+    path: Array<{ x: number; y: number }>,
+  ): false | 'left' | 'right' {
+    if (!def.signalsIntent) return false
+    if (def.turnTo === 'left' || def.turnTo === 'right') return def.turnTo
+    if (!def.turnAt || path.length < 3) return false
+    const distanceToTurn = Math.hypot(state.x - def.turnAt.x, state.y - def.turnAt.y)
+    if (distanceToTurn > Math.max(60, def.speed * 1.35)) return false
+    const before = { x: def.turnAt.x - def.startX, y: def.turnAt.y - def.startY }
+    const after = { x: def.endX - def.turnAt.x, y: def.endY - def.turnAt.y }
+    const cross = before.x * after.y - before.y * after.x
+    return cross < 0 ? 'right' : 'left'
+  }
+
+  private setNpcLights(
+    lights: NpcLights,
+    state: NpcVState,
+    signal: false | 'left' | 'right',
+    elapsed: number,
+  ) {
+    const braking = state === 'braking' || state === 'stopped'
+    lights.brakeLeft.setAlpha(braking ? 1 : 0)
+    lights.brakeRight.setAlpha(braking ? 1 : 0)
+    const blink = Math.floor(elapsed / 260) % 2 === 0
+    lights.signalLeft.setAlpha(signal === 'left' && blink ? 1 : 0)
+    lights.signalRight.setAlpha(signal === 'right' && blink ? 1 : 0)
+  }
+
+  private hashString(input: string): number {
+    let hash = 2166136261
+    for (let i = 0; i < input.length; i += 1) {
+      hash ^= input.charCodeAt(i)
+      hash = Math.imul(hash, 16777619)
+    }
+    return hash >>> 0
+  }
+
+  private seededUnit(seed: number): number {
+    const next = (Math.imul(seed >>> 0, 1664525) + 1013904223) >>> 0
+    return next / 0xffffffff
   }
 
   private updateSafetyGlance(elapsed: number) {
@@ -1725,13 +2078,20 @@ export class ScenarioScene extends Phaser.Scene {
   }
 
   private reachedGoal(roadType: RoadType): Maneuver | null {
-    if (roadType === 'highway') {
+    if (roadType === 'highway' || roadType === 'merge') {
       // Wide tolerance matching the highway width
       if (this.car.y < GOAL_STRAIGHT_Y && Math.abs(this.car.x - CX) < HIGHWAY_W / 2 + 6) return 'straight'
       return null
     }
+    if (roadType === 'roundabout') {
+      if (this.car.y < GOAL_STRAIGHT_Y && Math.abs(this.car.x - CX) < ROAD_W / 2 + 14) return 'straight'
+      if (this.car.x > GOAL_RIGHT_X && Math.abs(this.car.y - CY) < ROAD_W / 2 + 14) return 'right'
+      if (this.car.x < GOAL_LEFT_X && Math.abs(this.car.y - CY) < ROAD_W / 2 + 14) return 'left'
+      return null
+    }
     if (roadType !== 't-junction') {
-      if (this.car.y < GOAL_STRAIGHT_Y && Math.abs(this.car.x - CX) < 44) return 'straight'
+      const width = roadType === 'multilane' ? MULTILANE_ROAD_W : ROAD_W
+      if (this.car.y < GOAL_STRAIGHT_Y && Math.abs(this.car.x - CX) < width / 2 + 4) return 'straight'
     }
     if (this.car.x > GOAL_RIGHT_X && Math.abs(this.car.y - CY) < 44) return 'right'
     if (this.car.x < GOAL_LEFT_X  && Math.abs(this.car.y - CY) < 44) return 'left'
@@ -1739,8 +2099,17 @@ export class ScenarioScene extends Phaser.Scene {
   }
 
   private isOffRoad(roadType: RoadType): boolean {
-    if (roadType === 'highway') {
+    if (roadType === 'highway' || roadType === 'merge') {
       return Math.abs(this.car.x - CX) > HIGHWAY_W / 2 + 6
+    }
+    if (roadType === 'roundabout') {
+      const dist = Math.hypot(this.car.x - CX, this.car.y - CY)
+      const onRing = dist >= ROUNDABOUT_INNER_R + 8 && dist <= ROUNDABOUT_OUTER_R + 8
+      const onNSApproach = Math.abs(this.car.x - CX) <= ROAD_W / 2 + 6 &&
+        (this.car.y > CY + ROUNDABOUT_INNER_R || this.car.y < CY - ROUNDABOUT_INNER_R)
+      const onEWApproach = Math.abs(this.car.y - CY) <= ROAD_W / 2 + 6 &&
+        (this.car.x > CX + ROUNDABOUT_INNER_R || this.car.x < CX - ROUNDABOUT_INNER_R)
+      return !onRing && !onNSApproach && !onEWApproach
     }
     if (roadType === 'straight' && this.hasBusLane) {
       return Math.abs(this.car.x - CX) > BUS_ROAD_W / 2 + 6
@@ -1749,8 +2118,9 @@ export class ScenarioScene extends Phaser.Scene {
       return Math.abs(this.car.x - CX) > NARROW_ROAD_W / 2 + 4
     }
 
-    const onNS = Math.abs(this.car.x - CX) <= ROAD_W / 2 + 6
-    const onEW = Math.abs(this.car.y - CY) <= ROAD_W / 2 + 6
+    const width = roadType === 'multilane' ? MULTILANE_ROAD_W : ROAD_W
+    const onNS = Math.abs(this.car.x - CX) <= width / 2 + 6
+    const onEW = Math.abs(this.car.y - CY) <= width / 2 + 6
 
     if (roadType === 'straight') {
       return !onNS
@@ -1766,6 +2136,11 @@ export class ScenarioScene extends Phaser.Scene {
   private enteringConflictArea(): boolean {
     if (!this.scenario) return false
     const roadType: RoadType = this.scenario.roadType ?? 'cross'
+
+    if (roadType === 'roundabout') {
+      const dist = Math.hypot(this.car.x - CX, this.car.y - CY)
+      return dist < ROUNDABOUT_OUTER_R + 28 && this.car.y < STOP_LINE_Y + 32
+    }
 
     if (roadType === 'straight' && this.hasNarrowRoad) {
       return this.car.y < 760 && this.car.y > 360
@@ -1785,6 +2160,11 @@ export class ScenarioScene extends Phaser.Scene {
   }
 
   private vehicleHasPriority(obj: Phaser.GameObjects.Container, roadType: RoadType): boolean {
+    if (roadType === 'roundabout') {
+      const inRing = Math.hypot(obj.x - CX, obj.y - CY) < ROUNDABOUT_OUTER_R + 24
+      return inRing
+    }
+
     if (roadType === 'straight' && this.hasNarrowRoad) {
       const closingGap = obj.y < this.car.y && this.car.y - obj.y < 190
       const sameNarrowRoad = Math.abs(obj.x - CX) < NARROW_ROAD_W / 2 + 12

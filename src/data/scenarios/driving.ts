@@ -10,14 +10,16 @@ const NB_X    = CX - 20            // 380 — player northbound lane
 const SB_X    = CX + 20            // 420 — oncoming (southbound) lane
 const CROSS_Y = CY + 4             // 524 — crossing traffic near the intersection centre
 const PED_Y   = CY + INT / 2 + 48  // 608 — pedestrian crosswalk on the south approach
+const STOP_LINE_Y = CY + INT / 2 + 50
 const HWY_SB_X = CX + 40           // 440 — expressway oncoming carriageway
+const GOAL_RIGHT_X = CX + 160
 
 // Pedestrian crossing the south crosswalk, left→right and right→left.
 const PED_L = CX - ROAD_W / 2 - 12 // 348
 const PED_R = CX + ROAD_W / 2 + 12 // 452
 
-// Unified 24-scenario series: all scenarios available in all modes.
-// All scenarios include 3+ NPC vehicles and cover Okinawa/Japan left-side traffic rules.
+// Unified 27-scenario series: all scenarios available in one focused practice path.
+// Scenarios cover Okinawa/Japan left-side traffic rules with denser, reactive traffic.
 export const drivingScenarios: Scenario[] = [
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -917,6 +919,244 @@ export const drivingScenarios: Scenario[] = [
       commonMistake: {
         'zh-TW': '長時間等待心煩，見有人衝燈就跟住，或者黃燈未轉青就起步。',
         ja: '長く待ってイライラし、他の車の信号無視について行ったり、黄信号で発進してしまうのが典型的なミスです。',
+      },
+    },
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SCENARIO 25 — Roundabout: yield to traffic already in the ring
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    id: 'roundabout-yield',
+    category: 'priority',
+    roadType: 'roundabout',
+    title: { 'zh-TW': '環狀交差點——讓環內車', ja: '環状交差点——環道内優先' },
+    instruction: { 'zh-TW': '直行（入環先讓環內車，順時針繞行）', ja: '直進（環道内優先・時計回りに進行）' },
+    difficulty: 3,
+    maneuver: 'straight',
+    speedLimit: 30,
+    trafficDensity: 'busy',
+    roadComplexity: 'complex',
+    behaviorProfile: 'realistic',
+    light: null,
+    safetyCheck: { blindSpotLeft: true, windowMs: { from: 0, to: 12000 } },
+    npcs: [
+      {
+        id: 'ring1',
+        type: 'vehicle',
+        variant: 'kei',
+        startX: CX + 88,
+        startY: CY,
+        endX: CX - 88,
+        endY: CY,
+        speed: 68,
+        startAtMs: 500,
+        color: 0x26a69a,
+        behavior: 'aggressive',
+        signalsIntent: true,
+        turnAt: { x: CX, y: CY + 88 },
+        turnTo: 'left',
+        reactionGap: 58,
+      },
+      {
+        id: 'ring2',
+        type: 'vehicle',
+        variant: 'car',
+        startX: CX,
+        startY: CY - 88,
+        endX: CX,
+        endY: CY + 88,
+        speed: 64,
+        startAtMs: 2400,
+        color: 0xffc107,
+        behavior: 'random',
+        signalsIntent: true,
+        turnAt: { x: CX + 88, y: CY },
+        turnTo: 'left',
+        reactionGap: 72,
+        randomSeed: 7,
+      },
+      {
+        id: 'scoot-blind',
+        type: 'vehicle',
+        variant: 'scooter',
+        startX: NB_X - 34,
+        startY: 980,
+        endX: NB_X - 34,
+        endY: 300,
+        speed: 110,
+        startAtMs: 3000,
+        color: 0xff7043,
+        behavior: 'rail',
+      },
+    ],
+    evaluation: { allowedManeuvers: ['straight'], yieldToVehicles: true },
+    feedback: {
+      explanation: {
+        'zh-TW': '環狀交差點冇紅綠燈，但入環車一定要讓已經喺環內嘅車。日本靠左，環島順時針繞行；入環唔使打燈，但要留意右邊嚟車。去到出口前打左燈離開，離開時都要確認左後方有冇電單車或單車被你捲入。',
+        ja: '環状交差点では、進入車は環道内の車を優先します。左側通行のため時計回りに進行。進入時の合図は不要ですが右から来る車に注意し、退出前に左合図、左後方の二輪車も確認します。',
+      },
+      lawArticle: '道路交通法第35条の2・第37条の2',
+      commonMistake: {
+        'zh-TW': '當普通十字路口咁衝入環，唔讓環內車；或者出環時唔望左後，捲到二輪車。',
+        ja: '普通の交差点の感覚で進入し環道内車両を妨げる、または退出時の左後方確認を怠るミス。',
+      },
+    },
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SCENARIO 26 — Uncontrolled intersection: left-side priority
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    id: 'uncontrolled-left-priority',
+    category: 'priority',
+    roadType: 'uncontrolled',
+    title: { 'zh-TW': '無號誌路口——讓左方車', ja: '無信号交差点——左方優先' },
+    instruction: { 'zh-TW': '直行（冇燈冇止まれ，先讓左邊嚟車）', ja: '直進（信号なし・止まれなし、左方車を優先）' },
+    difficulty: 3,
+    maneuver: 'straight',
+    speedLimit: 30,
+    trafficDensity: 'busy',
+    roadComplexity: 'complex',
+    behaviorProfile: 'unpredictable',
+    light: null,
+    signs: ['slow'],
+    npcs: [
+      {
+        id: 'left-priority-car',
+        type: 'vehicle',
+        variant: 'car',
+        startX: -60,
+        startY: CROSS_Y,
+        endX: 860,
+        endY: CROSS_Y,
+        speed: 115,
+        startAtMs: 1700,
+        color: 0xcc2222,
+        behavior: 'aggressive',
+        reactionGap: 50,
+      },
+      {
+        id: 'right-random-kei',
+        type: 'vehicle',
+        variant: 'kei',
+        startX: 860,
+        startY: CROSS_Y + 8,
+        endX: -60,
+        endY: CROSS_Y + 8,
+        speed: 92,
+        startAtMs: 4100,
+        color: 0x44bb55,
+        behavior: 'random',
+        randomSeed: 26,
+        reactionGap: 82,
+      },
+      {
+        id: 'late-scooter',
+        type: 'vehicle',
+        variant: 'scooter',
+        startX: -60,
+        startY: CROSS_Y - 16,
+        endX: 860,
+        endY: CROSS_Y - 16,
+        speed: 124,
+        startAtMs: 5800,
+        color: 0xff7043,
+        behavior: 'aggressive',
+        reactionGap: 48,
+      },
+    ],
+    evaluation: { yieldToVehicles: true, allowedManeuvers: ['straight'] },
+    feedback: {
+      explanation: {
+        'zh-TW': '沖繩住宅街好多細路口冇信號亦冇止まれ。當大家都冇明顯優先道路時，要讓左方道路嚟嘅車先行。做法係早收油、接近路口前徐行，左右確認，等左方車過晒先入路口。',
+        ja: '沖縄の住宅街には信号も「止まれ」もない小さな交差点が多くあります。優先道路が明確でない場合は左方車優先。早めに減速し、左右を確認して左方車が通過してから進みます。',
+      },
+      lawArticle: '道路交通法第36条第1項',
+      commonMistake: {
+        'zh-TW': '以為自己直行就一定優先，冇理左邊巷口突然出車。',
+        ja: '自分が直進だから優先と思い込み、左側から出てくる車を見落とすミス。',
+      },
+    },
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SCENARIO 27 — Multilane right-turn lane selection
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    id: 'multilane-right-turn-lane',
+    category: 'standard',
+    roadType: 'multilane',
+    title: { 'zh-TW': '多線道右轉——提早揀右轉線', ja: '複数車線の右折——右折レーンを早めに選ぶ' },
+    instruction: { 'zh-TW': '右轉（提早入右轉專用線，讓對向直行車）', ja: '右折（早めに右折レーンへ・対向直進車を優先）' },
+    difficulty: 3,
+    maneuver: 'right',
+    speedLimit: 50,
+    trafficDensity: 'busy',
+    roadComplexity: 'complex',
+    behaviorProfile: 'realistic',
+    laneCount: 2,
+    hasRightTurnLane: true,
+    light: { type: 'standard', color: 'green' },
+    npcs: [
+      {
+        id: 'opp-fast',
+        type: 'vehicle',
+        variant: 'taxi',
+        startX: CX + 18,
+        startY: CY - 430,
+        endX: CX + 18,
+        endY: CY + 460,
+        speed: 150,
+        startAtMs: 700,
+        color: 0xffc107,
+        behavior: 'aggressive',
+        reactionGap: 54,
+      },
+      {
+        id: 'opp-random',
+        type: 'vehicle',
+        variant: 'car',
+        startX: CX + 52,
+        startY: CY - 470,
+        endX: CX + 52,
+        endY: CY + 470,
+        speed: 118,
+        startAtMs: 2800,
+        color: 0x2255cc,
+        behavior: 'random',
+        randomSeed: 27,
+        reactionGap: 86,
+      },
+      {
+        id: 'lead-turner',
+        type: 'vehicle',
+        variant: 'kei',
+        startX: CX - 18,
+        startY: 740,
+        endX: GOAL_RIGHT_X + 120,
+        endY: CY,
+        speed: 70,
+        startAtMs: 900,
+        color: 0x26a69a,
+        behavior: 'turner',
+        signalsIntent: true,
+        turnAt: { x: CX - 18, y: STOP_LINE_Y - 12 },
+        turnTo: 'right',
+        yieldsToPlayer: true,
+        reactionGap: 105,
+      },
+    ],
+    evaluation: { allowedManeuvers: ['right'], yieldToVehicles: true },
+    feedback: {
+      explanation: {
+        'zh-TW': '多線道右轉要提早讀路面箭嘴，安全情況下事前入右轉專用線。去到路口唔好臨急跨線；青燈右轉仍然要讓對向直行車，等空檔夠大先轉。',
+        ja: '複数車線では路面矢印を早めに読み、安全を確認して右折レーンへ入ります。交差点直前の急な車線変更は避け、青信号でも対向直進車を優先して十分な間隔で右折します。',
+      },
+      lawArticle: '道路交通法第34条・第37条',
+      commonMistake: {
+        'zh-TW': '臨到路口先發現要右轉，急切線兼搶對向車空檔。',
+        ja: '交差点直前で右折に気づき、急な車線変更や無理な右折をしてしまうミス。',
       },
     },
   },

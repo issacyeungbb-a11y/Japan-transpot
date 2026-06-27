@@ -1,4 +1,4 @@
-import type { Scenario, ScenarioNPC } from '../types'
+import type { Scenario, ScenarioNPC, NpcBehavior } from '../types'
 
 type TrafficDensity = 'light' | 'normal' | 'busy'
 type RoadComplexity = 'simple' | 'urban' | 'complex'
@@ -74,9 +74,14 @@ function defaultTimeLimitMs(scenario: Scenario, density: TrafficDensity): number
 
 function normaliseNpc(npc: ScenarioNPC, scenario: Scenario, index: number): ScenarioNPC {
   if (npc.type === 'pedestrian') return npc
+  const variant = npc.variant ?? defaultVariantFor(scenario, index)
+  const behavior = npc.behavior ?? defaultBehaviorFor(npc, scenario, index)
   return {
     ...npc,
-    variant: npc.variant ?? defaultVariantFor(scenario, index),
+    variant,
+    behavior,
+    signalsIntent: npc.signalsIntent ?? behavior !== 'rail',
+    reactionGap: npc.reactionGap ?? defaultReactionGap(behavior, variant),
   }
 }
 
@@ -88,6 +93,22 @@ function defaultVariantFor(scenario: Scenario, index: number): VehicleVariant {
   return 'car'
 }
 
+function defaultBehaviorFor(npc: ScenarioNPC, scenario: Scenario, index: number): NpcBehavior {
+  if (scenario.roadType === 'roundabout') return index % 2 === 0 ? 'cruise' : 'random'
+  if (scenario.evaluation.yieldToVehicles) return 'aggressive'
+  if (npc.variant === 'scooter' && scenario.maneuver === 'left') return 'aggressive'
+  if (scenario.difficulty === 3 && index % 3 === 1) return 'random'
+  return 'cruise'
+}
+
+function defaultReactionGap(behavior: NpcBehavior, variant: VehicleVariant): number {
+  if (behavior === 'aggressive') return 48
+  if (behavior === 'yield') return 110
+  if (variant === 'truck' || variant === 'bus') return 125
+  if (variant === 'scooter') return 70
+  return 90
+}
+
 function ambientTrafficFor(
   scenario: Scenario,
   density: TrafficDensity
@@ -95,7 +116,8 @@ function ambientTrafficFor(
   const roadType = scenario.roadType ?? 'cross'
   const count = DENSITY_SCORE[density]
 
-  if (roadType === 'highway') return highwayTraffic(count)
+  if (roadType === 'highway' || roadType === 'merge') return highwayTraffic(count)
+  if (roadType === 'roundabout') return roundaboutTraffic(count)
   if (roadType === 'straight') return straightRoadTraffic(scenario, count)
   return intersectionTraffic(scenario, count)
 }
@@ -108,6 +130,17 @@ function highwayTraffic(count: number): ScenarioNPC[] {
 
   if (count >= 3) {
     npcs.push(vehicle('ambient-hwy-taxi', 'taxi', HWY_SB_X, 80, HWY_SB_X, 1060, 165, 4300, 0xffc107))
+  }
+  return npcs
+}
+
+function roundaboutTraffic(count: number): ScenarioNPC[] {
+  const npcs: ScenarioNPC[] = [
+    vehicle('ambient-ring-kei', 'kei', CX + 88, CY, CX - 88, CY, 72, 900, 0x26a69a, 'cruise', { x: CX, y: CY + 88 }, 'left'),
+  ]
+
+  if (count >= 2) {
+    npcs.push(vehicle('ambient-ring-random', 'car', CX, CY - 88, CX, CY + 88, 68, 3100, 0xffc107, 'random', { x: CX + 88, y: CY }, 'left'))
   }
   return npcs
 }
@@ -135,16 +168,17 @@ function straightRoadTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
 }
 
 function intersectionTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
+  const priorityBehavior: NpcBehavior = scenario.evaluation.yieldToVehicles ? 'aggressive' : 'cruise'
   const npcs: ScenarioNPC[] = [
-    vehicle('ambient-oncoming-kei', 'kei', SB_X, CY - 360, SB_X, CY + 360, 112, 1800, 0x26a69a),
+    vehicle('ambient-oncoming-kei', 'kei', SB_X, CY - 360, SB_X, CY + 360, 112, 1800, 0x26a69a, priorityBehavior),
   ]
 
   if (scenario.maneuver === 'right' || count >= 3) {
-    npcs.push(vehicle('ambient-oncoming-taxi', 'taxi', SB_X, CY - 400, SB_X, CY + 380, 135, 3900, 0xffc107))
+    npcs.push(vehicle('ambient-oncoming-taxi', 'taxi', SB_X, CY - 400, SB_X, CY + 380, 135, 3900, 0xffc107, priorityBehavior))
   }
 
   if (scenario.maneuver === 'left') {
-    npcs.push(vehicle('ambient-left-blind-scooter', 'scooter', NB_X - 34, 980, NB_X - 34, 360, 104, 2300, 0xff7043))
+    npcs.push(vehicle('ambient-left-blind-scooter', 'scooter', NB_X - 34, 980, NB_X - 34, 360, 104, 2300, 0xff7043, 'aggressive'))
   }
 
   // Cross-street vehicles only where the player has NO protected green. At a
@@ -154,7 +188,7 @@ function intersectionTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
   // unsignalised/flashing junctions, and priority-road crossings, where the
   // player is taught to yield.
   if (!playerGetsGreen(scenario)) {
-    npcs.push(vehicle('ambient-cross-truck', 'truck', -60, CROSS_Y, 860, CROSS_Y, 130, 2500, 0x78909c))
+    npcs.push(vehicle('ambient-cross-truck', 'truck', -60, CROSS_Y, 860, CROSS_Y, 130, 2500, 0x78909c, priorityBehavior))
   }
 
   // An ambient pedestrian crossing the player's approach is a yield lesson for
@@ -205,9 +239,28 @@ function vehicle(
   endY: number,
   speed: number,
   startAtMs: number,
-  color: number
+  color: number,
+  behavior: NpcBehavior = 'cruise',
+  turnAt?: { x: number; y: number },
+  turnTo?: ScenarioNPC['turnTo'],
 ): ScenarioNPC {
-  return { id, type: 'vehicle', variant, startX, startY, endX, endY, speed, startAtMs, color }
+  return {
+    id,
+    type: 'vehicle',
+    variant,
+    startX,
+    startY,
+    endX,
+    endY,
+    speed,
+    startAtMs,
+    color,
+    behavior,
+    signalsIntent: behavior !== 'rail',
+    reactionGap: defaultReactionGap(behavior, variant),
+    turnAt,
+    turnTo,
+  }
 }
 
 function mergeNpcs(base: ScenarioNPC[], ambient: ScenarioNPC[]): ScenarioNPC[] {
