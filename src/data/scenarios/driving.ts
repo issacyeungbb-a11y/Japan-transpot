@@ -667,9 +667,9 @@ export const drivingScenarios: Scenario[] = [
     lightChanges: [{ atMs: 3600, state: { type: 'standard', color: 'green' } }],
     npcs: [
       // Truck crossing left→right during red phase
-      { id: 'cross1', type: 'vehicle', variant: 'truck', startX: -40, startY: CROSS_Y, endX: 860, endY: CROSS_Y, speed: 150, startAtMs: 600, color: 0x78909c },
+      { id: 'cross1', type: 'vehicle', variant: 'truck', startX: -40, startY: CROSS_Y - 18, endX: 860, endY: CROSS_Y - 18, speed: 150, startAtMs: 600, color: 0x78909c },
       // Car crossing left→right during red phase
-      { id: 'cross2', type: 'vehicle', variant: 'car', startX: -40, startY: CROSS_Y, endX: 860, endY: CROSS_Y, speed: 130, startAtMs: 2000, color: 0x44bb55 },
+      { id: 'cross2', type: 'vehicle', variant: 'car', startX: -40, startY: CROSS_Y - 18, endX: 860, endY: CROSS_Y - 18, speed: 130, startAtMs: 2400, color: 0x44bb55 },
       // Pedestrian left→right starts 600ms after green (absolute: 1700+3600+600=5900ms)
       { id: 'ped1', type: 'pedestrian', startX: PED_L, startY: PED_Y, endX: PED_R, endY: PED_Y, speed: 40, startAtMs: 5900, color: 0xffd54f },
       // Oncoming slow car starts after green
@@ -707,11 +707,11 @@ export const drivingScenarios: Scenario[] = [
     light: null,
     npcs: [
       // Main road car right→left (fast)
-      { id: 'main1', type: 'vehicle', variant: 'car', startX: 860, startY: CROSS_Y, endX: -40, endY: CROSS_Y, speed: 160, startAtMs: 1300, color: 0x2255cc },
+      { id: 'main1', type: 'vehicle', variant: 'car', startX: 860, startY: CROSS_Y + 18, endX: -40, endY: CROSS_Y + 18, speed: 160, startAtMs: 1300, color: 0x2255cc },
       // Main road car left→right
-      { id: 'main2', type: 'vehicle', variant: 'car', startX: -40, startY: CROSS_Y, endX: 860, endY: CROSS_Y, speed: 145, startAtMs: 2800, color: 0xcc2222 },
+      { id: 'main2', type: 'vehicle', variant: 'car', startX: -40, startY: CROSS_Y - 18, endX: 860, endY: CROSS_Y - 18, speed: 145, startAtMs: 3000, color: 0xcc2222 },
       // Scooter right→left (fast, narrower)
-      { id: 'main3', type: 'vehicle', variant: 'scooter', startX: 860, startY: CROSS_Y, endX: -40, endY: CROSS_Y, speed: 100, startAtMs: 4200, color: 0x44bb55 },
+      { id: 'main3', type: 'vehicle', variant: 'scooter', startX: 860, startY: CROSS_Y + 26, endX: -40, endY: CROSS_Y + 26, speed: 100, startAtMs: 5600, color: 0x44bb55 },
       // Scooter behind player in the carpark
     ],
     evaluation: { mustStop: true, allowedManeuvers: ['left'], yieldToVehicles: true },
@@ -785,8 +785,8 @@ export const drivingScenarios: Scenario[] = [
     npcs: [
       // Oncoming car
       { id: 'oncoming1', type: 'vehicle', variant: 'car', startX: SB_X, startY: CY - 400, endX: SB_X, endY: CY + 500, speed: 100, startAtMs: 0, color: 0xcc2222 },
-      // Cross car right→left
-      { id: 'cross1', type: 'vehicle', variant: 'car', startX: 860, startY: CROSS_Y, endX: -40, endY: CROSS_Y, speed: 130, startAtMs: 1000, color: 0x44bb55 },
+      // Rear scooter in the player's direction adds pressure without crossing a protected green.
+      { id: 'rear1', type: 'vehicle', variant: 'scooter', startX: NB_X - 34, startY: 1040, endX: NB_X - 34, endY: 440, speed: 76, startAtMs: 2600, color: 0x44bb55 },
     ],
     evaluation: { allowedManeuvers: ['right'] },
     feedback: {
@@ -901,11 +901,11 @@ export const drivingScenarios: Scenario[] = [
     ],
     npcs: [
       // Cross car left→right (during red, early)
-      { id: 'cross1', type: 'vehicle', variant: 'car', startX: -40, startY: CROSS_Y, endX: 860, endY: CROSS_Y, speed: 130, startAtMs: 300, color: 0x44bb55 },
+      { id: 'cross1', type: 'vehicle', variant: 'car', startX: -40, startY: CROSS_Y - 18, endX: 860, endY: CROSS_Y - 18, speed: 130, startAtMs: 300, color: 0x44bb55 },
       // Cross car left→right (during red, second wave)
-      { id: 'cross2', type: 'vehicle', variant: 'car', startX: -40, startY: CROSS_Y, endX: 860, endY: CROSS_Y, speed: 120, startAtMs: 2100, color: 0x9c27b0 },
+      { id: 'cross2', type: 'vehicle', variant: 'car', startX: -40, startY: CROSS_Y - 18, endX: 860, endY: CROSS_Y - 18, speed: 120, startAtMs: 2600, color: 0x9c27b0 },
       // Cross car right→left (during red)
-      { id: 'cross3', type: 'vehicle', variant: 'car', startX: 860, startY: CROSS_Y, endX: -40, endY: CROSS_Y, speed: 140, startAtMs: 1200, color: 0xffc107 },
+      { id: 'cross3', type: 'vehicle', variant: 'car', startX: 860, startY: CROSS_Y + 18, endX: -40, endY: CROSS_Y + 18, speed: 140, startAtMs: 1400, color: 0xffc107 },
       // Oncoming slow car starts after first green (absolute: 1700+5000=6700ms)
       { id: 'oncoming1', type: 'vehicle', variant: 'car', startX: SB_X, startY: 300, endX: SB_X, endY: 1050, speed: 55, startAtMs: 6700, color: 0xcc2222 },
     ],
@@ -1027,9 +1027,9 @@ export const drivingScenarios: Scenario[] = [
         type: 'vehicle',
         variant: 'car',
         startX: -60,
-        startY: CROSS_Y,
+        startY: CROSS_Y - 18,
         endX: 860,
-        endY: CROSS_Y,
+        endY: CROSS_Y - 18,
         speed: 115,
         startAtMs: 1700,
         color: 0xcc2222,
@@ -1041,9 +1041,9 @@ export const drivingScenarios: Scenario[] = [
         type: 'vehicle',
         variant: 'kei',
         startX: 860,
-        startY: CROSS_Y + 8,
+        startY: CROSS_Y + 18,
         endX: -60,
-        endY: CROSS_Y + 8,
+        endY: CROSS_Y + 18,
         speed: 92,
         startAtMs: 4100,
         color: 0x44bb55,
@@ -1056,9 +1056,9 @@ export const drivingScenarios: Scenario[] = [
         type: 'vehicle',
         variant: 'scooter',
         startX: -60,
-        startY: CROSS_Y - 16,
+        startY: CROSS_Y - 26,
         endX: 860,
-        endY: CROSS_Y - 16,
+        endY: CROSS_Y - 26,
         speed: 124,
         startAtMs: 5800,
         color: 0xff7043,

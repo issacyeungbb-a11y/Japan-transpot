@@ -306,5 +306,36 @@ function vehicle(
 
 function mergeNpcs(base: ScenarioNPC[], ambient: ScenarioNPC[]): ScenarioNPC[] {
   const ids = new Set(base.map((npc) => npc.id))
-  return [...base, ...ambient.filter((npc) => !ids.has(npc.id))]
+  const merged = [...base]
+  for (const npc of ambient) {
+    if (ids.has(npc.id)) continue
+    if (merged.some((existing) => pathsConflict(existing, npc))) continue
+    merged.push(npc)
+  }
+  return merged
+}
+
+function pathsConflict(a: ScenarioNPC, b: ScenarioNPC): boolean {
+  if (a.type !== 'vehicle' || b.type !== 'vehicle') return false
+  for (let t = 0; t <= 16000; t += 200) {
+    const pa = positionAt(a, t)
+    const pb = positionAt(b, t)
+    if (!pa || !pb) continue
+    if (Math.hypot(pa.x - pb.x, pa.y - pb.y) < 36) return true
+  }
+  return false
+}
+
+function positionAt(npc: ScenarioNPC, elapsedMs: number): { x: number; y: number } | null {
+  const activeMs = elapsedMs - npc.startAtMs
+  if (activeMs < 0) return null
+  const dx = npc.endX - npc.startX
+  const dy = npc.endY - npc.startY
+  const dist = Math.hypot(dx, dy)
+  const progress = dist === 0 ? 1 : (npc.speed * activeMs / 1000) / dist
+  if (progress > 1) return null
+  return {
+    x: npc.startX + dx * progress,
+    y: npc.startY + dy * progress,
+  }
 }
