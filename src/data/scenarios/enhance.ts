@@ -37,6 +37,7 @@ export function enhanceScenario(scenario: Scenario): Scenario {
     ...scenario,
     trafficDensity,
     roadComplexity,
+    safetyCheck: scenario.safetyCheck ?? defaultSafetyCheck(scenario),
     timeLimitMs: scenario.timeLimitMs ?? defaultTimeLimitMs(scenario, trafficDensity),
     npcs,
     evaluation: {
@@ -45,6 +46,11 @@ export function enhanceScenario(scenario: Scenario): Scenario {
       yieldToVehicles: scenario.evaluation.yieldToVehicles ?? (hasVehicleYield || undefined),
     },
   }
+}
+
+function defaultSafetyCheck(scenario: Scenario): Scenario['safetyCheck'] {
+  if (scenario.maneuver !== 'left') return undefined
+  return { blindSpotLeft: true, windowMs: { from: 0, to: 9000 } }
 }
 
 function defaultTrafficDensity(scenario: Scenario): TrafficDensity {
@@ -135,6 +141,10 @@ function intersectionTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
 
   if (scenario.maneuver === 'right' || count >= 3) {
     npcs.push(vehicle('ambient-oncoming-taxi', 'taxi', SB_X, CY - 400, SB_X, CY + 380, 135, 3900, 0xffc107))
+  }
+
+  if (scenario.maneuver === 'left') {
+    npcs.push(vehicle('ambient-left-blind-scooter', 'scooter', NB_X - 34, 980, NB_X - 34, 360, 104, 2300, 0xff7043))
   }
 
   // Cross-street vehicles only where the player has NO protected green. At a

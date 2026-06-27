@@ -1,6 +1,6 @@
 import { inputState } from '../../game/inputState'
 
-type InputKey = 'throttle' | 'brake' | 'left' | 'right'
+type InputKey = 'throttle' | 'brake' | 'left' | 'right' | 'glanceLeft' | 'glanceRight'
 
 interface Props {
   disabled?: boolean
@@ -12,18 +12,65 @@ export function DrivingControls({ disabled }: Props) {
       className="flex items-center justify-between px-3 py-2 sm:px-5 sm:py-3 bg-[#0d1b2a]/95 border-t border-[#1A4E8C]/40 select-none"
       style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}
     >
-      {/* Steering — two tap buttons, large touch targets */}
-      <div className="flex gap-2">
-        <DriveButton k="left"  disabled={disabled} color="#1A4E8C" icon="◀" label="左轉" />
-        <DriveButton k="right" disabled={disabled} color="#1A4E8C" icon="▶" label="右轉" />
+      {/* Steering + left blind-spot glance */}
+      <div className="flex flex-col items-start gap-1">
+        <GlanceButton k="glanceLeft" disabled={disabled} label="左後" />
+        <div className="flex gap-2">
+          <DriveButton k="left"  disabled={disabled} color="#1A4E8C" icon="◀" label="左轉" />
+          <DriveButton k="right" disabled={disabled} color="#1A4E8C" icon="▶" label="右轉" />
+        </div>
       </div>
 
-      {/* Throttle + Brake */}
-      <div className="flex gap-2">
-        <DriveButton k="throttle" disabled={disabled} color="#2e7d32" icon="▲" label="油門" />
-        <DriveButton k="brake"    disabled={disabled} color="#c62828" icon="▼" label="煞車" />
+      {/* Throttle + Brake + right blind-spot glance */}
+      <div className="flex flex-col items-end gap-1">
+        <GlanceButton k="glanceRight" disabled={disabled} label="右後" />
+        <div className="flex gap-2">
+          <DriveButton k="throttle" disabled={disabled} color="#2e7d32" icon="▲" label="油門" />
+          <DriveButton k="brake"    disabled={disabled} color="#c62828" icon="▼" label="煞車" />
+        </div>
       </div>
     </div>
+  )
+}
+
+function GlanceButton({
+  k,
+  label,
+  disabled,
+}: {
+  k: 'glanceLeft' | 'glanceRight'
+  label: string
+  disabled?: boolean
+}) {
+  const press   = () => { if (!disabled) inputState[k] = true }
+  const release = () => { inputState[k] = false }
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onPointerDown={(e) => {
+        e.preventDefault()
+        ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+        press()
+      }}
+      onPointerUp={release}
+      onPointerCancel={release}
+      onPointerLeave={release}
+      onContextMenu={(e) => e.preventDefault()}
+      className="flex items-center justify-center gap-1 rounded-full font-bold text-white transition-transform active:scale-95 disabled:opacity-40 touch-none"
+      style={{
+        width: 'clamp(54px, 13vw, 62px)',
+        height: 'clamp(34px, 9vw, 42px)',
+        fontSize: 'clamp(10px, 2.7vw, 12px)',
+        backgroundColor: '#263238cc',
+        border: '2px solid #90A4AE',
+        WebkitTapHighlightColor: 'transparent',
+      }}
+    >
+      <span>👀</span>
+      <span>{label}</span>
+    </button>
   )
 }
 

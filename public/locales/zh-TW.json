@@ -4,12 +4,8 @@
     "subtitle": "日本道路規則模擬遊戲"
   },
   "menu": {
-    "study": "學習模式",
-    "study_desc": "無限生命・基礎規則・由簡至難",
-    "normal": "一般模式",
-    "normal_desc": "3條生命・混合難度・含行人及轉向",
-    "challenge": "挑戰模式",
-    "challenge_desc": "1條生命・繁忙路口・高速公路",
+    "practice": "自駕熟習",
+    "practice_desc": "24個沖繩路面情境・無生命限制・重點練判斷",
     "start": "開始遊戲",
     "how_to_play": "玩法說明",
     "start_desc": "24 個沖繩實境關卡・無限生命"
@@ -37,6 +33,9 @@
     "off_road": "偏離車道",
     "speeding": "超速駕駛",
     "bus_lane": "駛入巴士專用線",
+    "no_safety_check": "漏做安全確認",
+    "failed_to_slow": "冇按情況徐行",
+    "illegal_overtake": "違規超車",
     "timeout": "太耐都未完成"
   },
   "feedback": {

@@ -18,6 +18,12 @@ const ROAD_LABEL: Record<string, Record<string, string>> = {
   't-junction':{ 'zh-TW': 'T形路口', ja: 'T字路' },
   straight:    { 'zh-TW': '直路',     ja: '直線路' },
   highway:     { 'zh-TW': '高速公路', ja: '高速道路' },
+  roundabout:  { 'zh-TW': '環狀交差點', ja: '環状交差点' },
+  multilane:   { 'zh-TW': '多線道', ja: '複数車線' },
+  merge:       { 'zh-TW': '合流/分流', ja: '合流/分流' },
+  skewed:      { 'zh-TW': '斜交路口', ja: '斜め交差点' },
+  uncontrolled:{ 'zh-TW': '無號誌路口', ja: '無信号交差点' },
+  tunnel:      { 'zh-TW': '隧道', ja: 'トンネル' },
 }
 
 type TrafficDensity = 'light' | 'normal' | 'busy'

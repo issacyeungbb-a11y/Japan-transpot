@@ -91,10 +91,16 @@ const YIELD_CREEP_SPEED = 72
 // local limit — and full throttle tops out at 80 km/h.
 const KMH_PER_PX = 50 / CRUISE_SPEED
 // How far over the posted limit (km/h) is tolerated, and for how long (ms),
-// before it counts as a speeding violation. A short overshoot is forgiven so a
-// brief burst of speed is fine — only sustained speeding fails the run.
-const SPEED_TOLERANCE = 22
-const SPEED_GRACE_MS = 2600
+// before it counts as a speeding violation. A short overshoot is forgiven.
+// The tolerance scales with the road: low-speed school/street zones stay tight,
+// while expressways still forgive tiny control overshoots.
+const SPEED_TOLERANCE_RATIO = 0.18
+const MIN_SPEED_TOLERANCE_KMH = 5
+const SPEED_GRACE_MS = 1600
+// Holding the throttle settles the car slightly above the posted limit, but
+// still below the tolerance for that road. Deliberate sustained overshoot still fails.
+const THROTTLE_HEADROOM_RATIO = 0.12
+const MIN_THROTTLE_HEADROOM_KMH = 4
 const DEFAULT_TIME_LIMIT_MS = 42000
 
 // Wet road: brakes bite less (longer stopping distance) and grip drops.
@@ -103,7 +109,7 @@ const RAIN_TURN_FACTOR = 0.78
 
 // ETC toll gate: line the player must cross at ETC crawl speed or hit the bar.
 const GATE_Y = 770
-const ETC_MAX_KMH = 25
+const ETC_MAX_KMH = 20
 
 // ---- Collision radii ----
 const CAR_R = 15
@@ -111,6 +117,16 @@ const NPC_CAR_R = 14
 const NPC_PED_R = 8
 
 type Phase = 'idle' | 'ready' | 'drive' | 'done'
+
+function speedToleranceKmh(limit: number): number {
+  return limit > 0 ? Math.max(MIN_SPEED_TOLERANCE_KMH, limit * SPEED_TOLERANCE_RATIO) : 0
+}
+
+function throttleHeadroomKmh(limit: number): number {
+  const tolerance = speedToleranceKmh(limit)
+  if (tolerance <= 0) return 0
+  return Math.max(MIN_THROTTLE_HEADROOM_KMH, Math.min(tolerance - 1, limit * THROTTLE_HEADROOM_RATIO))
+}
 
 interface NpcSprite {
   def: ScenarioNPC
@@ -162,6 +178,10 @@ export class ScenarioScene extends Phaser.Scene {
   private hasNarrowRoad = false
   private hasCrosswalk = false
   private roadComplexity: NonNullable<Scenario['roadComplexity']> = 'simple'
+  private glanceInset: Phaser.GameObjects.Container | null = null
+  private activeGlance: 'left' | 'right' | null = null
+  private safetyCheckedLeft = false
+  private safetyCheckedRight = false
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
   private keyW?: Phaser.Input.Keyboard.Key
@@ -844,9 +864,10 @@ export class ScenarioScene extends Phaser.Scene {
 
   private updateSpeedHud() {
     const kmh = Math.round(this.speed * KMH_PER_PX)
+    const tolerance = speedToleranceKmh(this.speedLimit)
     this.speedReadout.setText(String(kmh))
     // Turn the readout amber/red as it approaches and exceeds the limit.
-    if (this.speedLimit > 0 && kmh > this.speedLimit + SPEED_TOLERANCE) {
+    if (this.speedLimit > 0 && kmh > this.speedLimit + tolerance) {
       this.speedReadout.setColor('#ff4d4d')
     } else if (this.speedLimit > 0 && kmh > this.speedLimit) {
       this.speedReadout.setColor('#ffcc00')
@@ -1297,11 +1318,11 @@ export class ScenarioScene extends Phaser.Scene {
     this.hasStopped = false
     this.crossedLine = false
     this.speedLimit = scenario.speedLimit ?? 0
-    // The throttle always pulls to the full top speed (150 km/h) — the player
-    // has real control of the gas. Posted limits no longer cap the throttle;
-    // they're shown on the sign and enforced by the speeding check, so it's the
-    // driver's job to ease off, just like real driving.
-    this.maxSpeedPx = MAX_SPEED
+    // Cap the throttle slightly above the posted limit, scaled by road speed,
+    // so low-speed zones stay genuinely slow while faster roads still feel responsive.
+    this.maxSpeedPx = this.speedLimit > 0
+      ? (this.speedLimit + throttleHeadroomKmh(this.speedLimit)) / KMH_PER_PX
+      : MAX_SPEED
     this.overspeedMs = 0
     this.raining = scenario.weather === 'rain'
     this.hasTollGate = scenario.tollGate === true
@@ -1310,6 +1331,9 @@ export class ScenarioScene extends Phaser.Scene {
     this.hasNarrowRoad = scenario.narrowRoad === true
     this.hasCrosswalk = scenario.crosswalk === true
     this.roadComplexity = scenario.roadComplexity ?? 'simple'
+    this.safetyCheckedLeft = false
+    this.safetyCheckedRight = false
+    this.clearGlanceInset()
 
     this.tweens.killTweensOf(this.car)
 
@@ -1359,7 +1383,9 @@ export class ScenarioScene extends Phaser.Scene {
     this.time.delayedCall(1700, () => {
       if (this.phase !== 'ready') return
       this.phase = 'drive'
-      this.speed = CRUISE_SPEED
+      this.speed = this.speedLimit > 0
+        ? Math.min(CRUISE_SPEED, this.speedLimit / KMH_PER_PX)
+        : CRUISE_SPEED
       this.driveStart = this.time.now
 
       scenario.lightChanges?.forEach((ch) => {
@@ -1381,6 +1407,7 @@ export class ScenarioScene extends Phaser.Scene {
     this.clearRain()
     this.clearBusLane()
     this.clearNPCs()
+    this.clearGlanceInset()
     this.resetCarToSpawn()
   }
 
@@ -1397,6 +1424,7 @@ export class ScenarioScene extends Phaser.Scene {
     this.updateSpeedHud()
     this.updateRain(dt)
     this.updateBus(dt)
+    this.updateSafetyGlance(elapsed)
 
     if (this.resolved) return
     this.evaluate(elapsed, dt)
@@ -1409,7 +1437,7 @@ export class ScenarioScene extends Phaser.Scene {
     const speedFraction = Phaser.Math.Clamp(this.speed / MAX_SPEED, 0, 1)
     const cam = this.cameras.main
 
-    // Look-ahead: at rest car sits at 73% down; at 150 km/h it drops to 91%,
+    // Look-ahead: at rest car sits at 73% down; at 80 km/h it drops to 91%,
     // revealing ~70 extra world-px of road rushing toward the intersection.
     const targetOffset = 105 + speedFraction * 80   // 105 → 185 (never exceeds 190)
     // Snap look-ahead forward instantly when flooring it; ease back gently on coast.
@@ -1421,7 +1449,7 @@ export class ScenarioScene extends Phaser.Scene {
 
     // Spring position lerp: at full throttle the camera trails the car by ~80 ms,
     // so the car visibly surges ahead before the view catches up — WOO effect.
-    const posLerp = 1 - speedFraction * 0.35   // 1.0 at stop → 0.65 at 150 km/h
+    const posLerp = 1 - speedFraction * 0.35   // 1.0 at stop → 0.65 at 80 km/h
     cam.setLerp(1, posLerp)
   }
 
@@ -1483,6 +1511,94 @@ export class ScenarioScene extends Phaser.Scene {
     })
   }
 
+  private updateSafetyGlance(elapsed: number) {
+    const side = inputState.glanceLeft ? 'left' : inputState.glanceRight ? 'right' : null
+    if (side === 'left') {
+      if (this.glanceCountsForWindow('left', elapsed)) this.safetyCheckedLeft = true
+    } else if (side === 'right') {
+      if (this.glanceCountsForWindow('right', elapsed)) this.safetyCheckedRight = true
+    }
+
+    if (side !== this.activeGlance) {
+      this.activeGlance = side
+      if (side) this.showGlanceInset(side)
+      else this.clearGlanceInset()
+    } else if (side) {
+      this.refreshGlanceInset(side)
+    }
+  }
+
+  private glanceCountsForWindow(side: 'left' | 'right', elapsed: number): boolean {
+    const check = this.scenario?.safetyCheck
+    if (!check) return true
+    if (side === 'left' && !check.blindSpotLeft && !check.mirror) return true
+    if (side === 'right' && !check.blindSpotRight && !check.mirror) return true
+    const windowMs = check.windowMs
+    if (!windowMs) return true
+    return elapsed >= windowMs.from && elapsed <= windowMs.to
+  }
+
+  private clearGlanceInset() {
+    this.glanceInset?.destroy()
+    this.glanceInset = null
+    this.activeGlance = null
+  }
+
+  private showGlanceInset(side: 'left' | 'right') {
+    this.clearGlanceInset()
+    this.activeGlance = side
+    this.glanceInset = this.add.container(side === 'left' ? 88 : GAME_WIDTH - 88, 72)
+      .setScrollFactor(0)
+      .setDepth(55)
+    this.refreshGlanceInset(side)
+  }
+
+  private refreshGlanceInset(side: 'left' | 'right') {
+    if (!this.glanceInset) return
+    this.glanceInset.removeAll(true)
+    const danger = this.hasBlindSpotThreat(side)
+    const w = 150
+    const h = 76
+
+    const panel = this.add.graphics()
+    panel.fillStyle(0x071522, 0.92)
+    panel.fillRoundedRect(-w / 2, -h / 2, w, h, 10)
+    panel.lineStyle(2, danger ? 0xff5252 : 0x90caf9, 0.95)
+    panel.strokeRoundedRect(-w / 2, -h / 2, w, h, 10)
+    panel.fillStyle(0x263238)
+    panel.fillRect(-w / 2 + 12, 10, w - 24, 18)
+    panel.fillStyle(0xffffff, 0.45)
+    panel.fillRect(-8, 10, 4, 18)
+    panel.fillStyle(0x64b5f6)
+    panel.fillRoundedRect(side === 'left' ? 10 : -24, 11, 18, 16, 4)
+    if (danger) {
+      panel.fillStyle(0xff7043)
+      panel.fillRoundedRect(side === 'left' ? -52 : 42, 12, 13, 14, 5)
+    }
+
+    const label = this.add
+      .text(0, -20, `${side === 'left' ? '左後' : '右後'}${danger ? ' 有二輪車' : ' 安全'}`, {
+        fontFamily: 'sans-serif',
+        fontSize: '13px',
+        fontStyle: 'bold',
+        color: danger ? '#ff8a80' : '#d8f3ff',
+      })
+      .setOrigin(0.5)
+    this.glanceInset.add([panel, label])
+  }
+
+  private hasBlindSpotThreat(side: 'left' | 'right'): boolean {
+    return this.npcs.some(({ def, obj }) => {
+      if (!obj.visible || def.type !== 'vehicle') return false
+      if (def.variant !== 'scooter') return false
+      const behind = obj.y > this.car.y - 30 && obj.y < this.car.y + 190
+      const lateral = side === 'left'
+        ? obj.x < this.car.x && obj.x > this.car.x - 95
+        : obj.x > this.car.x && obj.x < this.car.x + 95
+      return behind && lateral
+    })
+  }
+
   private evaluate(elapsed: number, dt: number) {
     const ev = this.scenario!.evaluation
     const maneuver = this.scenario!.maneuver
@@ -1491,7 +1607,7 @@ export class ScenarioScene extends Phaser.Scene {
     // 0) Speeding — sustained driving over the posted limit fails the run.
     if (this.speedLimit > 0) {
       const kmh = this.speed * KMH_PER_PX
-      if (kmh > this.speedLimit + SPEED_TOLERANCE) {
+      if (kmh > this.speedLimit + speedToleranceKmh(this.speedLimit)) {
         this.overspeedMs += dt * 1000
         if (this.overspeedMs > SPEED_GRACE_MS) return this.resolve('speeding')
       } else {
@@ -1515,6 +1631,9 @@ export class ScenarioScene extends Phaser.Scene {
     if (this.hasBusLane && elapsed > 250 && this.car.x < CX - 4) {
       return this.resolve('bus_lane')
     }
+
+    const safetyReason = this.safetyCheckFailure()
+    if (safetyReason) return this.resolve(safetyReason)
 
     // 1) Collision. A stationary car cannot run anyone over, so a pedestrian
     // walking across in front of a car that has correctly stopped to yield is
@@ -1575,6 +1694,26 @@ export class ScenarioScene extends Phaser.Scene {
 
     // 6) Timeout
     if (elapsed > (this.scenario!.timeLimitMs ?? DEFAULT_TIME_LIMIT_MS)) return this.resolve('timeout')
+  }
+
+  private safetyCheckFailure(): OutcomeReason | null {
+    const scenario = this.scenario
+    const check = scenario?.safetyCheck
+    if (!scenario || !check) return null
+
+    const nearDecisionPoint = this.car.y <= STOP_LINE_Y + 36
+    const turningLeft = scenario.maneuver === 'left' && (this.heading < -0.12 || nearDecisionPoint)
+    const turningRight = scenario.maneuver === 'right' && (this.heading > 0.12 || nearDecisionPoint)
+
+    if (check.blindSpotLeft && turningLeft && !this.safetyCheckedLeft) {
+      return this.hasBlindSpotThreat('left') && this.heading < -0.12 ? 'failed_to_yield' : 'no_safety_check'
+    }
+
+    if (check.blindSpotRight && turningRight && !this.safetyCheckedRight) {
+      return this.hasBlindSpotThreat('right') && this.heading > 0.12 ? 'failed_to_yield' : 'no_safety_check'
+    }
+
+    return null
   }
 
   private npcRadius(def: ScenarioNPC): number {
@@ -1677,6 +1816,9 @@ export class ScenarioScene extends Phaser.Scene {
         wrong_way: '方向錯誤',
         timeout: '超時',
         bus_lane: '禁入巴士專用線',
+        no_safety_check: '漏做安全確認',
+        failed_to_slow: '未有徐行',
+        illegal_overtake: '違規超車',
       }
       const cx = GAME_WIDTH / 2
       const cy = GAME_HEIGHT / 2

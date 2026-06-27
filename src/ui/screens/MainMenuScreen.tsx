@@ -20,13 +20,12 @@ export function MainMenuScreen({ onStart }: Props) {
 
   return (
     <div className="relative flex flex-col items-center justify-center h-full bg-[#0d1b2a] overflow-hidden">
-      {/* Background decoration */}
+      {/* Road centreline background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-20 -left-20 w-96 h-96 rounded-full bg-[#1A4E8C]/20 blur-3xl" />
-        <div className="absolute -bottom-20 -right-20 w-96 h-96 rounded-full bg-[#FF6B35]/10 blur-3xl" />
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-full opacity-10">
-          {Array.from({ length: 20 }).map((_, i) => (
-            <div key={i} className="w-full h-12 bg-white mb-6" />
+        <div className="absolute inset-y-0 left-1/2 w-24 -translate-x-1/2 bg-black/10" />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-full opacity-15">
+          {Array.from({ length: 14 }).map((_, i) => (
+            <div key={i} className="w-full h-14 bg-white mb-8" />
           ))}
         </div>
       </div>

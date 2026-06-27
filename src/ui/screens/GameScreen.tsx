@@ -5,7 +5,7 @@ import { HUD } from '../components/HUD'
 import { DrivingControls } from './DrivingControls'
 import { FeedbackModal } from './FeedbackModal'
 import { bridge, PHASER_EVENTS, REACT_EVENTS } from '../../game/EventBridge'
-import { resetInputState } from '../../game/inputState'
+import { inputState, resetInputState } from '../../game/inputState'
 import { useGameStore } from '../../store/gameStore'
 import { getScenarioById } from '../../data/scenarios'
 import { calcScore } from '../../data/trafficRules'
@@ -37,6 +37,8 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
   const pendingScenarioRef = useRef<Scenario | null>(null)
   const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleNextRef = useRef<() => void>(() => {})
+  const swipeStartRef = useRef<{ x: number; y: number; t: number } | null>(null)
+  const glancePulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const scenarioId = session?.scenarioIds[session.currentIndex]
   const currentScenario = scenarioId ? getScenarioById(scenarioId) : null
   const hasSession = Boolean(session)
@@ -164,14 +166,45 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
   useEffect(() => {
     return () => {
       if (autoAdvanceTimer.current !== null) clearTimeout(autoAdvanceTimer.current)
+      if (glancePulseTimer.current !== null) clearTimeout(glancePulseTimer.current)
     }
   }, [])
+
+  const pulseGlance = useCallback((side: 'glanceLeft' | 'glanceRight') => {
+    inputState.glanceLeft = false
+    inputState.glanceRight = false
+    inputState[side] = true
+    if (glancePulseTimer.current !== null) clearTimeout(glancePulseTimer.current)
+    glancePulseTimer.current = setTimeout(() => {
+      inputState[side] = false
+      glancePulseTimer.current = null
+    }, 650)
+  }, [])
+
+  const handlePlayAreaPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    swipeStartRef.current = { x: e.clientX, y: e.clientY, t: Date.now() }
+  }, [])
+
+  const handlePlayAreaPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const start = swipeStartRef.current
+    swipeStartRef.current = null
+    if (!start || phase !== 'driving') return
+    const dx = e.clientX - start.x
+    const dy = e.clientY - start.y
+    const dt = Date.now() - start.t
+    if (Math.abs(dx) < 54 || Math.abs(dx) < Math.abs(dy) * 1.4 || dt > 450) return
+    pulseGlance(dx < 0 ? 'glanceLeft' : 'glanceRight')
+  }, [phase, pulseGlance])
 
   return (
     <div className="flex flex-col h-full bg-[#0d1b2a]">
       <HUD onBack={onBack} />
 
-      <div className="flex-1 relative overflow-hidden">
+      <div
+        className="flex-1 relative overflow-hidden"
+        onPointerDown={handlePlayAreaPointerDown}
+        onPointerUp={handlePlayAreaPointerUp}
+      >
         <PhaserGame className="w-full h-full" />
 
         {/* Get-ready instruction overlay */}

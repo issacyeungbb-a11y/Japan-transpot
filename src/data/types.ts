@@ -55,6 +55,15 @@ export interface LightChange {
   state: TrafficLightState
 }
 
+// NPC behaviour is optional so existing scenarios keep the legacy rail path.
+export type NpcBehavior =
+  | 'rail'
+  | 'cruise'
+  | 'yield'
+  | 'aggressive'
+  | 'turner'
+  | 'random'
+
 // A moving obstacle (oncoming car, crossing pedestrian, priority-road traffic).
 export interface ScenarioNPC {
   id: string
@@ -67,6 +76,13 @@ export interface ScenarioNPC {
   speed: number // pixels per second
   startAtMs: number
   color?: number
+  behavior?: NpcBehavior
+  signalsIntent?: boolean
+  turnAt?: { x: number; y: number }
+  turnTo?: ArrowDir
+  yieldsToPlayer?: boolean
+  reactionGap?: number
+  randomSeed?: number
 }
 
 // What the scene must evaluate, in real time, against the car's actual behaviour.
@@ -86,7 +102,42 @@ export interface ScenarioEvaluation {
   yieldToVehicles?: boolean
 }
 
-export type RoadType = 'cross' | 't-junction' | 'straight' | 'highway'
+export interface SafetyCheck {
+  mirror?: boolean
+  blindSpotLeft?: boolean
+  blindSpotRight?: boolean
+  windowMs?: { from: number; to: number }
+}
+
+export interface DecisionNode {
+  id: string
+  at: { x: number; y: number }
+  kind: 'signal' | 'stopsign' | 'yield' | 'crosswalk' | 'merge' | 'roundabout' | 'leftpriority'
+  required: Maneuver | 'proceed'
+  light?: TrafficLightState
+  lightChanges?: LightChange[]
+}
+
+export type RoadType =
+  | 'cross'
+  | 't-junction'
+  | 'straight'
+  | 'highway'
+  | 'roundabout'
+  | 'multilane'
+  | 'merge'
+  | 'skewed'
+  | 'uncontrolled'
+  | 'tunnel'
+
+export type RoadSign =
+  | 'slow'
+  | 'no-entry'
+  | 'no-overtaking'
+  | 'no-stopping'
+  | 'restricted-turn'
+  | 'crosswalk-ahead'
+  | 'roundabout'
 
 export interface Scenario {
   id: string
@@ -118,7 +169,7 @@ export interface Scenario {
   // distance grows and grip drops, like real wet Okinawa driving.
   weather?: 'rain'
   // Draws an ETC toll gate across an expressway approach. The bar only clears
-  // if you slow to ETC speed (≤25 km/h); arriving too fast hits the barrier.
+  // if you slow to ETC speed (≤20 km/h); arriving too fast hits the barrier.
   tollGate?: boolean
   // Renders a blue 「バス専用」 lane on the left with a bus; driving in it during
   // the restricted hours is a violation. Player must keep to the right lane.
@@ -129,6 +180,15 @@ export interface Scenario {
   // Paints a zebra crossing on a straight/narrow road, for unsignalised
   // pedestrian-yield drills near tourist spots, schools, and shops.
   crosswalk?: boolean
+  behaviorProfile?: 'easy' | 'realistic' | 'unpredictable'
+  safetyCheck?: SafetyCheck
+  decisionNodes?: DecisionNode[]
+  gradient?: 'uphill' | 'downhill'
+  visibility?: 'clear' | 'night' | 'fog' | 'glare'
+  wind?: 'none' | 'crosswind'
+  signs?: RoadSign[]
+  laneCount?: 1 | 2
+  hasRightTurnLane?: boolean
   evaluation: ScenarioEvaluation
   feedback: FeedbackContent
 }
@@ -143,6 +203,9 @@ export type OutcomeReason =
   | 'off_road' // left the roadway
   | 'speeding' // exceeded the posted speed limit for too long
   | 'bus_lane' // drove in a bus-only lane during restricted hours
+  | 'no_safety_check' // missed a required mirror/blind-spot confirmation
+  | 'failed_to_slow' // failed to slow at a slow/caution zone
+  | 'illegal_overtake' // crossed/used a forbidden overtake
   | 'timeout' // never completed the maneuver
 
 export interface DrivingOutcome {
