@@ -20,6 +20,7 @@ const REASON_ADVICE: Record<OutcomeReason, Record<Lang, string>> = {
   off_road:    { 'zh-TW': '保持車道，落雨／窄路尤其唔好扭軚過大衝出路面。', ja: '車線を維持。雨天や狭い道で切りすぎない。' },
   speeding:    { 'zh-TW': '睇住速度錶守限速，市區40–50、學校區30、自動車道80。', ja: '速度計を見て制限速度を守る（市街40–50・通学路30・自動車道80）。' },
   bus_lane:    { 'zh-TW': '繁忙時段唔好駛入藍色「バス専用」線，靠右行。', ja: '時間帯内は青い「バス専用」レーンに入らず右側を走行。' },
+  no_signal:   { 'zh-TW': '轉彎前要先打方向燈，再減速、確認、轉入目標車道。', ja: '右左折前に合図を出し、減速・確認してから曲がる。' },
   no_safety_check:{ 'zh-TW': '轉彎或切線前要望鏡同盲點，特別係左轉要確認左後方二輪車。', ja: '右左折・車線変更前はミラーと死角を確認。特に左折時は左後方の二輪に注意。' },
   failed_to_slow:{ 'zh-TW': '見徐行、窄路、學校區、視野差就要早收油，保持可以即停嘅速度。', ja: '徐行・狭路・通学路・視界不良では早めに減速し、すぐ止まれる速度に。' },
   illegal_overtake:{ 'zh-TW': '追越禁止或視線不足時唔好越線超車，保持車距等安全空檔。', ja: '追越し禁止や見通し不良では追越さず、車間距離を保って安全な余裕を待つ。' },
@@ -36,7 +37,7 @@ export function ResultsScreen({ onRestart, onMenu }: Props) {
   const total = session.answers.length
   const correct = session.answers.filter((a) => a.isCorrect).length
   const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0
-  const maxStreak = session.streak
+  const maxStreak = session.bestStreak
 
   const stars = accuracy >= 80 ? 3 : accuracy >= 50 ? 2 : 1
   const starLabel = stars === 3 ? t('results.stars_3') : stars === 2 ? t('results.stars_2') : t('results.stars_1')

@@ -8,9 +8,11 @@ interface Props {
   outcome: DrivingOutcome
   pointsEarned: number
   onNext: () => void
+  onSkip?: () => void
+  canSkip?: boolean
 }
 
-export function FeedbackModal({ scenario, outcome, pointsEarned, onNext }: Props) {
+export function FeedbackModal({ scenario, outcome, pointsEarned, onNext, onSkip, canSkip }: Props) {
   const { t } = useTranslation()
   const lang = useGameStore((s) => s.lang)
   const isCorrect = outcome.isCorrect
@@ -89,8 +91,16 @@ export function FeedbackModal({ scenario, outcome, pointsEarned, onNext }: Props
             className="w-full py-3 rounded-2xl font-bold text-white text-base transition-all hover:scale-[1.02] active:scale-[0.98]"
             style={{ background: 'linear-gradient(135deg, #FF6B35, #1A4E8C)' }}
           >
-            {t('feedback.confirm_next')} →
+            {isCorrect ? t('feedback.confirm_next') : t('feedback.retry')} →
           </button>
+          {!isCorrect && canSkip && onSkip && (
+            <button
+              onClick={onSkip}
+              className="mt-2 w-full py-3 rounded-2xl font-bold text-[#FFB74D] border border-[#FFB74D]/50 hover:bg-[#FFB74D]/10 transition-colors"
+            >
+              {t('feedback.skip_after_three')}
+            </button>
+          )}
           <div className="text-center text-xs text-gray-400 mt-2">{t('feedback.read_before_next')}</div>
         </div>
       </div>

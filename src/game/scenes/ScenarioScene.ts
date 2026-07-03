@@ -79,22 +79,24 @@ const GOAL_RIGHT_X  = CX + 160    // 560
 const GOAL_LEFT_X   = CX - 160    // 240
 
 // ---- Physics ----
-const CRUISE_SPEED = 120  // start speed — 50 km/h equivalent
+const CRUISE_SPEED = 120  // 50 km/h equivalent for tuning and steering response
 const MAX_SPEED = 192     // hard ceiling — 80 km/h on the speedometer (80 / KMH_PER_PX = 192 px/s)
-const ACCEL = 70          // gentle throttle — takes ~7 short presses from cruise to reach 80 km/h
-const BRAKE_DECEL = 320
+const ACCEL = 70          // gentle throttle — active speed management is part of the drill
+const BRAKE_DECEL = 85
 const COAST_FRICTION = 50 // moderate roll-off; coasts to a stop from max in ~4s
 const TURN_RATE = 2.5  // rad/s at full steering
-const STOP_EPS = 12       // speed threshold (px/s) that counts as "fully stopped"
-// Below this speed (≈30 km/h) the player is treated as crawling/yielding, so a
-// careful driver who slows right down for a pedestrian or priority car is never
-// failed for "not yielding". Only barrelling through at speed is punished.
-const YIELD_CREEP_SPEED = 72
+const STOP_EPS = 4        // speed threshold (px/s) that counts as "fully stopped"
+const FULL_STOP_HOLD_MS = 600
+const STOP_ZONE_BEFORE_LINE = 96
 
 // World px → km/h so the speedometer reads like a real car.
 // Chosen so the natural cruise (120 px/s) shows 50 km/h — the common Okinawa
 // local limit — and full throttle tops out at 80 km/h.
 const KMH_PER_PX = 50 / CRUISE_SPEED
+// Vehicles may creep while yielding, but pedestrians require an actual stop
+// once they are in front of the car.
+const VEHICLE_YIELD_CREEP_SPEED = 72
+const PEDESTRIAN_CAUTION_SPEED = 10 / KMH_PER_PX
 // How far over the posted limit (km/h) is tolerated, and for how long (ms),
 // before it counts as a speeding violation. A short overshoot is forgiven.
 // The tolerance scales with the road: low-speed school/street zones stay tight,
@@ -102,14 +104,10 @@ const KMH_PER_PX = 50 / CRUISE_SPEED
 const SPEED_TOLERANCE_RATIO = 0.18
 const MIN_SPEED_TOLERANCE_KMH = 5
 const SPEED_GRACE_MS = 1600
-// Holding the throttle settles the car slightly above the posted limit, but
-// still below the tolerance for that road. Deliberate sustained overshoot still fails.
-const THROTTLE_HEADROOM_RATIO = 0.12
-const MIN_THROTTLE_HEADROOM_KMH = 4
 const DEFAULT_TIME_LIMIT_MS = 42000
 
 // Wet road: brakes bite less (longer stopping distance) and grip drops.
-const RAIN_BRAKE_FACTOR = 0.55
+const RAIN_BRAKE_FACTOR = 0.6
 const RAIN_TURN_FACTOR = 0.78
 
 const NPC_ACCEL = 120
@@ -130,12 +128,6 @@ type NpcVState = 'cruise' | 'braking' | 'stopped' | 'turning'
 
 function speedToleranceKmh(limit: number): number {
   return limit > 0 ? Math.max(MIN_SPEED_TOLERANCE_KMH, limit * SPEED_TOLERANCE_RATIO) : 0
-}
-
-function throttleHeadroomKmh(limit: number): number {
-  const tolerance = speedToleranceKmh(limit)
-  if (tolerance <= 0) return 0
-  return Math.max(MIN_THROTTLE_HEADROOM_KMH, Math.min(tolerance - 1, limit * THROTTLE_HEADROOM_RATIO))
 }
 
 interface NpcSprite {
@@ -180,6 +172,7 @@ export class ScenarioScene extends Phaser.Scene {
 
   // Fixed (camera-locked) speedometer + speed-limit sign HUD.
   private speedReadout!: Phaser.GameObjects.Text
+  private stopConfirmedText!: Phaser.GameObjects.Text
   private limitSign!: Phaser.GameObjects.Container
   private limitSignNumber!: Phaser.GameObjects.Text
 
@@ -195,6 +188,7 @@ export class ScenarioScene extends Phaser.Scene {
   private driveStart = 0
   private currentLight: TrafficLightState | null = null
   private hasStopped = false
+  private stopStartedAt: number | null = null
   private crossedLine = false
   private resolved = false
   private speedLimit = 0      // km/h; 0 = no posted limit
@@ -210,12 +204,16 @@ export class ScenarioScene extends Phaser.Scene {
   private activeGlance: 'left' | 'right' | null = null
   private safetyCheckedLeft = false
   private safetyCheckedRight = false
+  private playerSignalLeft?: Phaser.GameObjects.Rectangle
+  private playerSignalRight?: Phaser.GameObjects.Rectangle
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys
   private keyW?: Phaser.Input.Keyboard.Key
   private keyA?: Phaser.Input.Keyboard.Key
   private keyS?: Phaser.Input.Keyboard.Key
   private keyD?: Phaser.Input.Keyboard.Key
+  private keyQ?: Phaser.Input.Keyboard.Key
+  private keyE?: Phaser.Input.Keyboard.Key
 
   constructor() {
     super({ key: 'ScenarioScene' })
@@ -244,6 +242,8 @@ export class ScenarioScene extends Phaser.Scene {
       this.keyA = this.input.keyboard.addKey('A')
       this.keyS = this.input.keyboard.addKey('S')
       this.keyD = this.input.keyboard.addKey('D')
+      this.keyQ = this.input.keyboard.addKey('Q')
+      this.keyE = this.input.keyboard.addKey('E')
     }
 
     this.addVignette()
@@ -975,6 +975,12 @@ export class ScenarioScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(31)
+    this.stopConfirmedText = this.add
+      .text(136, GAME_HEIGHT - 48, '✓已停定', { fontFamily: 'sans-serif', fontSize: '14px', fontStyle: 'bold', color: '#69f0ae' })
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(31)
+      .setVisible(false)
 
     // Speed-limit sign: white disc, red ring, black number (JP regulatory sign).
     const disc = this.add.graphics()
@@ -1004,6 +1010,7 @@ export class ScenarioScene extends Phaser.Scene {
     } else {
       this.speedReadout.setColor('#ffffff')
     }
+    this.stopConfirmedText.setVisible(this.hasStopped)
   }
 
   private applySpeedLimitSign() {
@@ -1160,7 +1167,10 @@ export class ScenarioScene extends Phaser.Scene {
     g.fillRect(-19, -9, 4, 4)
     g.fillRect(15, -9, 4, 4)
 
-    const c = this.add.container(0, 0, [shadow, g])
+    this.playerSignalLeft = this.add.rectangle(-14, -25, 6, 4, 0xffc107).setAlpha(0)
+    this.playerSignalRight = this.add.rectangle(14, -25, 6, 4, 0xffc107).setAlpha(0)
+
+    const c = this.add.container(0, 0, [shadow, g, this.playerSignalLeft, this.playerSignalRight])
     c.setDepth(10)
     return c
   }
@@ -1465,13 +1475,10 @@ export class ScenarioScene extends Phaser.Scene {
     this.phase = 'ready'
     this.resolved = false
     this.hasStopped = false
+    this.stopStartedAt = null
     this.crossedLine = false
     this.speedLimit = scenario.speedLimit ?? 0
-    // Cap the throttle slightly above the posted limit, scaled by road speed,
-    // so low-speed zones stay genuinely slow while faster roads still feel responsive.
-    this.maxSpeedPx = this.speedLimit > 0
-      ? (this.speedLimit + throttleHeadroomKmh(this.speedLimit)) / KMH_PER_PX
-      : MAX_SPEED
+    this.maxSpeedPx = MAX_SPEED
     this.overspeedMs = 0
     this.raining = scenario.weather === 'rain'
     this.hasTollGate = scenario.tollGate === true
@@ -1535,9 +1542,7 @@ export class ScenarioScene extends Phaser.Scene {
     const scenario = this.scenario
     if (!scenario || this.phase !== 'ready') return
     this.phase = 'drive'
-    this.speed = this.speedLimit > 0
-      ? Math.min(CRUISE_SPEED, this.speedLimit / KMH_PER_PX)
-      : CRUISE_SPEED
+    this.speed = 0
     this.driveStart = this.time.now
 
     scenario.lightChanges?.forEach((ch) => {
@@ -1609,11 +1614,14 @@ export class ScenarioScene extends Phaser.Scene {
     const right    = inputState.right    || this.cursors?.right.isDown || this.keyD?.isDown || false
     const throttle = inputState.throttle || this.cursors?.up.isDown    || this.keyW?.isDown || false
     const brake    = inputState.brake    || this.cursors?.down.isDown  || this.keyS?.isDown || false
-    return { left, right, throttle, brake }
+    const indicatorLeft = inputState.indicatorLeft || this.keyQ?.isDown || false
+    const indicatorRight = inputState.indicatorRight || this.keyE?.isDown || false
+    return { left, right, throttle, brake, indicatorLeft, indicatorRight }
   }
 
   private updateCar(dt: number) {
-    const { left, right, throttle, brake } = this.readInput()
+    const { left, right, throttle, brake, indicatorLeft, indicatorRight } = this.readInput()
+    this.updatePlayerSignalLights(indicatorLeft, indicatorRight)
 
     const brakeDecel = this.raining ? BRAKE_DECEL * RAIN_BRAKE_FACTOR : BRAKE_DECEL
     if (brake) {
@@ -1646,6 +1654,12 @@ export class ScenarioScene extends Phaser.Scene {
     this.car.x += fx * this.speed * dt
     this.car.y += fy * this.speed * dt
     this.car.setRotation(this.heading)
+  }
+
+  private updatePlayerSignalLights(left: boolean, right: boolean) {
+    const blink = Math.floor(this.time.now / 280) % 2 === 0
+    this.playerSignalLeft?.setAlpha(left && blink ? 1 : 0)
+    this.playerSignalRight?.setAlpha(right && blink ? 1 : 0)
   }
 
   private updateNPCs(elapsed: number, dt: number) {
@@ -1989,6 +2003,13 @@ export class ScenarioScene extends Phaser.Scene {
       return this.resolve('bus_lane')
     }
 
+    if (this.scenario?.signs?.includes('slow') && this.enteringConflictArea() && this.speed * KMH_PER_PX > 20) {
+      return this.resolve('failed_to_slow')
+    }
+
+    const signalReason = this.signalFailure()
+    if (signalReason) return this.resolve(signalReason)
+
     const safetyReason = this.safetyCheckFailure()
     if (safetyReason) return this.resolve(safetyReason)
 
@@ -2006,30 +2027,27 @@ export class ScenarioScene extends Phaser.Scene {
       }
     }
 
-    // 1b) Yielding — fail before a crash if the player drives into a conflict
-    // while someone else still has priority. To avoid false failures this only
-    // triggers on a GENUINE, imminent conflict: the player is still rolling
-    // faster than a careful crawl AND the priority road-user is close and in
-    // the car's path. Slowing right down or stopping always counts as yielding.
-    if (this.enteringConflictArea() && this.speed > YIELD_CREEP_SPEED) {
+    // 1b) Yielding — pedestrians require a real stop when they are in front of
+    // the car; priority vehicles still allow a careful crawl while waiting for a
+    // gap.
+    if (this.enteringConflictArea()) {
       for (const { def, obj } of this.npcs) {
         if (!obj.visible) continue
         const gap = Math.hypot(this.car.x - obj.x, this.car.y - obj.y)
         if (ev.yieldToPedestrians && def.type === 'pedestrian' && this.pedestrianHasPriority(obj)) {
           const ahead = obj.y < this.car.y + 8          // not already passed by the car
           const inLane = Math.abs(obj.x - this.car.x) < 28
-          if (ahead && inLane && gap < 78) return this.resolve('failed_to_yield')
+          if (ahead && inLane && gap < 60 && this.speed > STOP_EPS) return this.resolve('failed_to_yield')
+          if (ahead && inLane && gap < 78 && this.speed > PEDESTRIAN_CAUTION_SPEED) return this.resolve('failed_to_yield')
         }
-        if (ev.yieldToVehicles && def.type === 'vehicle' && this.vehicleHasPriority(obj, roadType)) {
+        if (ev.yieldToVehicles && def.type === 'vehicle' && this.speed > VEHICLE_YIELD_CREEP_SPEED && this.vehicleHasPriority(obj, roadType)) {
           if (gap < 95) return this.resolve('failed_to_yield')
         }
       }
     }
 
     // 2) Full-stop tracking (before the line)
-    if (!this.crossedLine && this.speed < STOP_EPS && this.car.y > STOP_LINE_Y) {
-      this.hasStopped = true
-    }
+    this.updateFullStopTracking(elapsed)
 
     // 3) Crossing the stop line
     if (!this.crossedLine && this.car.y <= STOP_LINE_Y) {
@@ -2071,6 +2089,29 @@ export class ScenarioScene extends Phaser.Scene {
     }
 
     return null
+  }
+
+  private signalFailure(): OutcomeReason | null {
+    const scenario = this.scenario
+    if (!scenario || (scenario.maneuver !== 'left' && scenario.maneuver !== 'right')) return null
+    if (!this.inSafetyTurnZone() || this.speed <= STOP_EPS) return null
+
+    const { indicatorLeft, indicatorRight } = this.readInput()
+    if (scenario.maneuver === 'left' && this.heading < -0.18 && !indicatorLeft) return 'no_signal'
+    if (scenario.maneuver === 'right' && this.heading > 0.18 && !indicatorRight) return 'no_signal'
+    return null
+  }
+
+  private updateFullStopTracking(elapsed: number) {
+    if (this.crossedLine || this.hasStopped) return
+
+    const inStopZone = this.car.y > STOP_LINE_Y && this.car.y <= STOP_LINE_Y + STOP_ZONE_BEFORE_LINE
+    if (inStopZone && this.speed < STOP_EPS) {
+      this.stopStartedAt ??= elapsed
+      if (elapsed - this.stopStartedAt >= FULL_STOP_HOLD_MS) this.hasStopped = true
+    } else {
+      this.stopStartedAt = null
+    }
   }
 
   private inSafetyTurnZone(): boolean {
@@ -2204,6 +2245,7 @@ export class ScenarioScene extends Phaser.Scene {
         wrong_way: '方向錯誤',
         timeout: '超時',
         bus_lane: '禁入巴士專用線',
+        no_signal: '轉彎前未打方向燈',
         no_safety_check: '漏做安全確認',
         failed_to_slow: '未有徐行',
         illegal_overtake: '違規超車',

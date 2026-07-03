@@ -5,6 +5,8 @@ export interface InputState {
   brake: boolean
   left: boolean
   right: boolean
+  indicatorLeft: boolean
+  indicatorRight: boolean
   glanceLeft: boolean
   glanceRight: boolean
 }
@@ -14,6 +16,8 @@ export const inputState: InputState = {
   brake: false,
   left: false,
   right: false,
+  indicatorLeft: false,
+  indicatorRight: false,
   glanceLeft: false,
   glanceRight: false,
 }
@@ -23,6 +27,8 @@ export function resetInputState() {
   inputState.brake = false
   inputState.left = false
   inputState.right = false
+  inputState.indicatorLeft = false
+  inputState.indicatorRight = false
   inputState.glanceLeft = false
   inputState.glanceRight = false
 }

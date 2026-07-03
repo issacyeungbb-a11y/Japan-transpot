@@ -126,8 +126,11 @@ export type RoadType =
   | 'roundabout'
   | 'multilane'
   | 'merge'
+  /** @planned geometry is typed but not yet fully rendered/evaluated. */
   | 'skewed'
+  /** @planned geometry is typed but not yet fully rendered/evaluated. */
   | 'uncontrolled'
+  /** @planned geometry is typed but not yet fully rendered/evaluated. */
   | 'tunnel'
 
 export type RoadSign =
@@ -182,9 +185,13 @@ export interface Scenario {
   crosswalk?: boolean
   behaviorProfile?: 'easy' | 'realistic' | 'unpredictable'
   safetyCheck?: SafetyCheck
+  /** @planned multi-node route evaluation is reserved for route-style levels. */
   decisionNodes?: DecisionNode[]
+  /** @planned grade affects braking/acceleration in a future terrain pass. */
   gradient?: 'uphill' | 'downhill'
+  /** @planned visual conditions need scene rendering before content relies on them. */
   visibility?: 'clear' | 'night' | 'fog' | 'glare'
+  /** @planned crosswind physics is reserved for highway/weather expansion. */
   wind?: 'none' | 'crosswind'
   signs?: RoadSign[]
   laneCount?: 1 | 2
@@ -203,6 +210,7 @@ export type OutcomeReason =
   | 'off_road' // left the roadway
   | 'speeding' // exceeded the posted speed limit for too long
   | 'bus_lane' // drove in a bus-only lane during restricted hours
+  | 'no_signal' // turned without signalling first
   | 'no_safety_check' // missed a required mirror/blind-spot confirmation
   | 'failed_to_slow' // failed to slow at a slow/caution zone
   | 'illegal_overtake' // crossed/used a forbidden overtake
@@ -219,6 +227,7 @@ export interface GameSession {
   currentIndex: number
   score: number
   streak: number
+  bestStreak: number
   answers: AnswerRecord[]
 }
 

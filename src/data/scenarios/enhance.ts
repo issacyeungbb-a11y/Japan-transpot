@@ -203,11 +203,11 @@ function intersectionTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
   const npcs: ScenarioNPC[] = approachCompanions(scenario, count)
   const protectedPlayerFlow = playerGetsGreen(scenario)
 
-  if (scenario.roadType !== 'uncontrolled') {
+  if (scenario.roadType !== 'uncontrolled' && !protectedPlayerFlow) {
     npcs.push(vehicle('ambient-oncoming-kei', 'kei', SB_X, CY - 360, SB_X, CY + 360, 112, 1800, 0x26a69a, priorityBehavior))
   }
 
-  if (scenario.roadType !== 'uncontrolled' && (scenario.maneuver === 'right' || count >= 3)) {
+  if (scenario.roadType !== 'uncontrolled' && !protectedPlayerFlow && (scenario.maneuver === 'right' || count >= 3)) {
     npcs.push(vehicle('ambient-oncoming-taxi', 'taxi', SB_X, CY - 400, SB_X, CY + 380, 135, 3900, 0xffc107, priorityBehavior))
   }
 

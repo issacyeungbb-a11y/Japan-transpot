@@ -41,6 +41,9 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
   const currentScenario = scenarioId ? getScenarioById(scenarioId) : null
   const hasSession = Boolean(session)
   const isSessionComplete = Boolean(session && session.currentIndex >= session.scenarioIds.length)
+  const currentFailures = session && currentScenario
+    ? session.answers.filter((a) => a.scenarioId === currentScenario.id && !a.isCorrect).length
+    : 0
 
   // Phaser scene finished registering its listeners
   useEffect(() => {
@@ -136,10 +139,33 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
   const handleNext = useCallback(() => {
     const store = useGameStore.getState()
     const s = store.session
-    if (!s) return
+    if (!s || !currentScenario) return
     resetInputState()
     bridge.emit(REACT_EVENTS.NEXT_SCENARIO)
 
+    if (outcome && !outcome.isCorrect) {
+      setInstruction(null)
+      setOutcome(null)
+      setPointsEarned(0)
+      setPhase('loading')
+      queueMicrotask(() => {
+        bridge.emit(REACT_EVENTS.START_SCENARIO, currentScenario)
+      })
+      return
+    }
+
+    store.nextScenario()
+    if (s.currentIndex + 1 >= s.scenarioIds.length) {
+      onSessionEnd()
+    }
+  }, [currentScenario, onSessionEnd, outcome])
+
+  const handleSkip = useCallback(() => {
+    const store = useGameStore.getState()
+    const s = store.session
+    if (!s) return
+    resetInputState()
+    bridge.emit(REACT_EVENTS.NEXT_SCENARIO)
     store.nextScenario()
     if (s.currentIndex + 1 >= s.scenarioIds.length) {
       onSessionEnd()
@@ -239,6 +265,8 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
           outcome={outcome}
           pointsEarned={pointsEarned}
           onNext={handleNext}
+          onSkip={handleSkip}
+          canSkip={currentFailures >= 3}
         />
       )}
     </div>

@@ -1,6 +1,6 @@
 import { inputState } from '../../game/inputState'
 
-type InputKey = 'throttle' | 'brake' | 'left' | 'right' | 'glanceLeft' | 'glanceRight'
+type InputKey = 'throttle' | 'brake' | 'left' | 'right' | 'glanceLeft' | 'glanceRight' | 'indicatorLeft' | 'indicatorRight'
 
 interface Props {
   disabled?: boolean
@@ -19,6 +19,7 @@ export function DrivingControls({ disabled }: Props) {
           <DriveButton k="left"  disabled={disabled} color="#1A4E8C" icon="◀" label="左轉" />
           <DriveButton k="right" disabled={disabled} color="#1A4E8C" icon="▶" label="右轉" />
         </div>
+        <SignalButton k="indicatorLeft" disabled={disabled} label="左燈" />
       </div>
 
       {/* Throttle + Brake + right blind-spot glance */}
@@ -28,8 +29,47 @@ export function DrivingControls({ disabled }: Props) {
           <DriveButton k="throttle" disabled={disabled} color="#2e7d32" icon="▲" label="油門" />
           <DriveButton k="brake"    disabled={disabled} color="#c62828" icon="▼" label="煞車" />
         </div>
+        <SignalButton k="indicatorRight" disabled={disabled} label="右燈" />
       </div>
     </div>
+  )
+}
+
+function SignalButton({
+  k,
+  label,
+  disabled,
+}: {
+  k: 'indicatorLeft' | 'indicatorRight'
+  label: string
+  disabled?: boolean
+}) {
+  const press = () => {
+    if (disabled) return
+    inputState.indicatorLeft = false
+    inputState.indicatorRight = false
+    inputState[k] = true
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={press}
+      onContextMenu={(e) => e.preventDefault()}
+      className="flex items-center justify-center gap-1 rounded-full font-bold text-white transition-transform active:scale-95 disabled:opacity-40 touch-none"
+      style={{
+        width: 'clamp(54px, 13vw, 62px)',
+        height: 'clamp(30px, 8vw, 36px)',
+        fontSize: 'clamp(10px, 2.7vw, 12px)',
+        backgroundColor: '#4a300dcc',
+        border: '2px solid #FFC107',
+        WebkitTapHighlightColor: 'transparent',
+      }}
+    >
+      <span>{k === 'indicatorLeft' ? '↙' : '↘'}</span>
+      <span>{label}</span>
+    </button>
   )
 }
 
