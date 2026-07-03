@@ -741,6 +741,8 @@ export const drivingScenarios: Scenario[] = [
     maneuver: 'right',
     speedLimit: 40,
     weather: 'rain',
+    gradient: 'downhill',
+    visibility: 'glare',
     trafficDensity: 'busy',
     roadComplexity: 'complex',
     light: { type: 'standard', color: 'green' },
@@ -815,6 +817,7 @@ export const drivingScenarios: Scenario[] = [
     maneuver: 'straight',
     speedLimit: 80,
     tollGate: true,
+    wind: 'crosswind',
     trafficDensity: 'busy',
     roadComplexity: 'complex',
     light: null,
@@ -852,6 +855,7 @@ export const drivingScenarios: Scenario[] = [
     difficulty: 3,
     maneuver: 'straight',
     speedLimit: 80,
+    wind: 'crosswind',
     trafficDensity: 'busy',
     roadComplexity: 'complex',
     light: null,
@@ -1020,6 +1024,7 @@ export const drivingScenarios: Scenario[] = [
     roadComplexity: 'complex',
     behaviorProfile: 'unpredictable',
     light: null,
+    visibility: 'glare',
     signs: ['slow'],
     npcs: [
       {

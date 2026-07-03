@@ -166,6 +166,7 @@ export class ScenarioScene extends Phaser.Scene {
   private tollGate: Phaser.GameObjects.Container | null = null
   private tollBar: Phaser.GameObjects.Rectangle | null = null
   private rainLayer: Phaser.GameObjects.Container | null = null
+  private visibilityLayer: Phaser.GameObjects.Container | null = null
   private busSprite: Phaser.GameObjects.Container | null = null
   private busLabels: Phaser.GameObjects.Text[] = []
   private busY = 0
@@ -199,6 +200,8 @@ export class ScenarioScene extends Phaser.Scene {
   private hasBusLane = false
   private hasNarrowRoad = false
   private hasCrosswalk = false
+  private gradient: Scenario['gradient'] | undefined
+  private wind: Scenario['wind'] | undefined
   private roadComplexity: NonNullable<Scenario['roadComplexity']> = 'simple'
   private glanceInset: Phaser.GameObjects.Container | null = null
   private activeGlance: 'left' | 'right' | null = null
@@ -299,7 +302,55 @@ export class ScenarioScene extends Phaser.Scene {
       this.drawRoadComplexity(g, roadType, maneuver)
     }
 
+    this.drawScenarioSigns(g)
     this.drawGoalMarker(maneuver)
+  }
+
+  private drawScenarioSigns(g: Phaser.GameObjects.Graphics) {
+    const signs = this.scenario?.signs ?? []
+    signs.forEach((sign, index) => {
+      const x = CX + ROAD_W / 2 + 42
+      const y = STOP_LINE_Y + 112 + index * 54
+      this.drawRoadSign(g, sign, x, y)
+    })
+  }
+
+  private drawRoadSign(g: Phaser.GameObjects.Graphics, sign: NonNullable<Scenario['signs']>[number], x: number, y: number) {
+    g.lineStyle(3, 0xf5f5f5, 1)
+    g.fillStyle(0xf5f5f5)
+    g.fillRect(x - 2, y + 14, 4, 42)
+
+    if (sign === 'slow') {
+      g.fillStyle(0x1565c0)
+      g.fillCircle(x, y, 18)
+      this.addRoadSignLabel(x, y, '徐行', '#ffffff')
+    } else if (sign === 'roundabout') {
+      g.fillStyle(0x1565c0)
+      g.fillCircle(x, y, 18)
+      this.addRoadSignLabel(x, y, '環', '#ffffff')
+    } else if (sign === 'crosswalk-ahead') {
+      g.fillStyle(0xffd54f)
+      g.fillTriangle(x, y - 18, x + 18, y, x, y + 18)
+      g.fillTriangle(x, y - 18, x - 18, y, x, y + 18)
+      this.addRoadSignLabel(x, y, '人', '#111111')
+    } else {
+      g.fillStyle(0xd32f2f)
+      g.fillCircle(x, y, 18)
+      g.fillStyle(0xffffff)
+      g.fillRect(x - 12, y - 3, 24, 6)
+      if (sign === 'no-overtaking') this.addRoadSignLabel(x, y + 24, '追越禁止', '#ffffff')
+      if (sign === 'no-entry') this.addRoadSignLabel(x, y + 24, '進入禁止', '#ffffff')
+      if (sign === 'restricted-turn') this.addRoadSignLabel(x, y + 24, '指定方向', '#ffffff')
+      if (sign === 'no-stopping') this.addRoadSignLabel(x, y + 24, '駐停禁', '#ffffff')
+    }
+  }
+
+  private addRoadSignLabel(x: number, y: number, text: string, color: string) {
+    const label = this.add
+      .text(x, y, text, { fontFamily: 'sans-serif', fontSize: '10px', fontStyle: 'bold', color, align: 'center' })
+      .setOrigin(0.5)
+      .setDepth(5)
+    this.busLabels.push(label)
   }
 
   private drawHighwayRoad(g: Phaser.GameObjects.Graphics) {
@@ -1091,6 +1142,11 @@ export class ScenarioScene extends Phaser.Scene {
     this.rainLayer = null
   }
 
+  private clearVisibilityLayer() {
+    this.visibilityLayer?.destroy()
+    this.visibilityLayer = null
+  }
+
   // A camera-locked downpour: a dim tint plus drifting rain streaks.
   private buildRain() {
     this.clearRain()
@@ -1118,6 +1174,27 @@ export class ScenarioScene extends Phaser.Scene {
         s.x = Phaser.Math.Between(0, GAME_WIDTH)
       }
     }
+  }
+
+  private buildVisibilityLayer(visibility: Scenario['visibility']) {
+    this.clearVisibilityLayer()
+    if (!visibility || visibility === 'clear') return
+
+    const parts: Phaser.GameObjects.GameObject[] = []
+    if (visibility === 'night') {
+      parts.push(this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x020713, 0.58))
+      parts.push(this.add.triangle(GAME_WIDTH / 2, GAME_HEIGHT * 0.78, -95, 0, 95, 0, 0, -300, 0xfff2b8, 0.18))
+    } else if (visibility === 'fog') {
+      parts.push(this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0xdce8ef, 0.34))
+      for (let i = 0; i < 7; i += 1) {
+        parts.push(this.add.rectangle(GAME_WIDTH / 2, 40 + i * 64, GAME_WIDTH, 22, 0xffffff, 0.10))
+      }
+    } else if (visibility === 'glare') {
+      parts.push(this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0xffd45c, 0.18))
+      parts.push(this.add.circle(GAME_WIDTH / 2, -16, 180, 0xfff0a0, 0.26))
+    }
+
+    this.visibilityLayer = this.add.container(0, 0, parts).setScrollFactor(0).setDepth(29)
   }
 
   // ================= Car =================
@@ -1486,6 +1563,8 @@ export class ScenarioScene extends Phaser.Scene {
     this.hasBusLane = scenario.busLane === true
     this.hasNarrowRoad = scenario.narrowRoad === true
     this.hasCrosswalk = scenario.crosswalk === true
+    this.gradient = scenario.gradient
+    this.wind = scenario.wind
     this.roadComplexity = scenario.roadComplexity ?? 'simple'
     this.safetyCheckedLeft = false
     this.safetyCheckedRight = false
@@ -1515,6 +1594,7 @@ export class ScenarioScene extends Phaser.Scene {
 
     this.clearRain()
     if (this.raining) this.buildRain()
+    this.buildVisibilityLayer(scenario.visibility)
 
     // The bus lane road + 「バス専用」 labels are drawn by buildRoad above; here we
     // add the moving bus that occupies that lane.
@@ -1545,8 +1625,8 @@ export class ScenarioScene extends Phaser.Scene {
     this.speed = 0
     this.driveStart = this.time.now
 
-    scenario.lightChanges?.forEach((ch) => {
-      this.time.delayedCall(ch.atMs, () => {
+    scenario.lightChanges?.forEach((ch, index) => {
+      this.time.delayedCall(this.jitterLightChangeMs(ch.atMs, index), () => {
         if (this.phase === 'drive') this.applyLightState(ch.state)
       })
     })
@@ -1561,6 +1641,7 @@ export class ScenarioScene extends Phaser.Scene {
     this.clearStopSign()
     this.clearTollGate()
     this.clearRain()
+    this.clearVisibilityLayer()
     this.clearBusLane()
     this.clearNPCs()
     this.clearGlanceInset()
@@ -1623,7 +1704,9 @@ export class ScenarioScene extends Phaser.Scene {
     const { left, right, throttle, brake, indicatorLeft, indicatorRight } = this.readInput()
     this.updatePlayerSignalLights(indicatorLeft, indicatorRight)
 
-    const brakeDecel = this.raining ? BRAKE_DECEL * RAIN_BRAKE_FACTOR : BRAKE_DECEL
+    const slopeBrakeFactor = this.gradient === 'downhill' ? 0.82 : this.gradient === 'uphill' ? 1.05 : 1
+    const slopeAccelFactor = this.gradient === 'uphill' ? 0.82 : this.gradient === 'downhill' ? 1.06 : 1
+    const brakeDecel = (this.raining ? BRAKE_DECEL * RAIN_BRAKE_FACTOR : BRAKE_DECEL) * slopeBrakeFactor
     if (brake) {
       this.speed = Math.max(0, this.speed - brakeDecel * dt)
     } else if (throttle) {
@@ -1631,7 +1714,7 @@ export class ScenarioScene extends Phaser.Scene {
       // very low limits, where the start speed exceeds the cap) just hold —
       // never force an abrupt slowdown from the throttle itself.
       if (this.speed < this.maxSpeedPx) {
-        this.speed = Math.min(this.maxSpeedPx, this.speed + ACCEL * dt)
+        this.speed = Math.min(this.maxSpeedPx, this.speed + ACCEL * slopeAccelFactor * dt)
       }
     } else {
       this.speed = Math.max(0, this.speed - COAST_FRICTION * dt)
@@ -1647,6 +1730,9 @@ export class ScenarioScene extends Phaser.Scene {
       const speedFactor = Math.min(1, this.speed / CRUISE_SPEED)
       const turnRate = this.raining ? TURN_RATE * RAIN_TURN_FACTOR : TURN_RATE
       this.heading += steer * turnRate * speedFactor * dt
+      if (this.wind === 'crosswind' && this.speed * KMH_PER_PX > 55) {
+        this.heading += 0.16 * speedFactor * dt
+      }
     }
 
     const fx = Math.sin(this.heading)
@@ -1882,6 +1968,13 @@ export class ScenarioScene extends Phaser.Scene {
     return next / 0xffffffff
   }
 
+  private jitterLightChangeMs(atMs: number, index: number): number {
+    if (!this.scenario || atMs < 1200) return atMs
+    const seed = this.hashString(`${this.scenario.id}:${index}:${atMs}`)
+    const jitter = (this.seededUnit(seed) - 0.5) * 0.7
+    return Math.max(900, Math.round(atMs * (1 + jitter)))
+  }
+
   private updateSafetyGlance(elapsed: number) {
     const side = inputState.glanceLeft ? 'left' : inputState.glanceRight ? 'right' : null
     if (side === 'left') {
@@ -2052,6 +2145,7 @@ export class ScenarioScene extends Phaser.Scene {
     // 3) Crossing the stop line
     if (!this.crossedLine && this.car.y <= STOP_LINE_Y) {
       this.crossedLine = true
+      if (this.mustUseRightTurnLane(roadType)) return this.resolve('wrong_way')
       if (ev.mustStop && !this.hasStopped) return this.resolve('no_full_stop')
       if (ev.waitForGo && !canCrossLine(this.currentLight, maneuver)) return this.resolve('ran_red')
       if (!canCrossLine(this.currentLight, maneuver)) return this.resolve('ran_red')
@@ -2081,11 +2175,11 @@ export class ScenarioScene extends Phaser.Scene {
     const turningRight = scenario.maneuver === 'right' && this.heading > 0.18 && inTurnZone
 
     if (check.blindSpotLeft && turningLeft && !this.safetyCheckedLeft) {
-      return this.hasBlindSpotThreat('left') ? 'failed_to_yield' : null
+      return this.hasBlindSpotThreat('left') ? 'failed_to_yield' : 'no_safety_check'
     }
 
     if (check.blindSpotRight && turningRight && !this.safetyCheckedRight) {
-      return this.hasBlindSpotThreat('right') ? 'failed_to_yield' : null
+      return this.hasBlindSpotThreat('right') ? 'failed_to_yield' : 'no_safety_check'
     }
 
     return null
@@ -2112,6 +2206,15 @@ export class ScenarioScene extends Phaser.Scene {
     } else {
       this.stopStartedAt = null
     }
+  }
+
+  private mustUseRightTurnLane(roadType: RoadType): boolean {
+    return (
+      roadType === 'multilane' &&
+      this.scenario?.hasRightTurnLane === true &&
+      this.scenario.maneuver === 'right' &&
+      this.car.x < CX - 36
+    )
   }
 
   private inSafetyTurnZone(): boolean {

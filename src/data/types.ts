@@ -187,11 +187,8 @@ export interface Scenario {
   safetyCheck?: SafetyCheck
   /** @planned multi-node route evaluation is reserved for route-style levels. */
   decisionNodes?: DecisionNode[]
-  /** @planned grade affects braking/acceleration in a future terrain pass. */
   gradient?: 'uphill' | 'downhill'
-  /** @planned visual conditions need scene rendering before content relies on them. */
   visibility?: 'clear' | 'night' | 'fog' | 'glare'
-  /** @planned crosswind physics is reserved for highway/weather expansion. */
   wind?: 'none' | 'crosswind'
   signs?: RoadSign[]
   laneCount?: 1 | 2
