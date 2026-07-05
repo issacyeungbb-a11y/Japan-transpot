@@ -79,6 +79,9 @@ export interface ScenarioNPC {
   behavior?: NpcBehavior
   signalsIntent?: boolean
   turnAt?: { x: number; y: number }
+  // Multi-segment route for reactive NPCs (e.g. riding a roundabout and then
+  // exiting via an arm). Takes precedence over turnAt when present.
+  waypoints?: Array<{ x: number; y: number }>
   turnTo?: ArrowDir
   yieldsToPlayer?: boolean
   reactionGap?: number

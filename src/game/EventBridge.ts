@@ -1,4 +1,14 @@
+import type { Scenario, Lang } from '../data/types'
+
 type EventCallback = (...args: unknown[]) => void
+
+// Payload for REACT_EVENTS.START_SCENARIO: the scenario to stage plus the UI
+// language, so the Phaser scene can localise its in-canvas text (failure
+// banner, stop-confirmed cue, blind-spot inset).
+export interface StartScenarioPayload {
+  scenario: Scenario
+  lang: Lang
+}
 
 class EventBridge {
   private listeners: Map<string, EventCallback[]> = new Map()

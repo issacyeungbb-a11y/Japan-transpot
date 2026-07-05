@@ -12,6 +12,9 @@ body {
   color: #f5f0e8;
   overflow: hidden;
   height: 100vh;
+  /* Mobile browsers: track the *visible* viewport so the bottom controls are
+     never hidden behind the browser chrome. */
+  height: 100dvh;
   width: 100vw;
 }
 

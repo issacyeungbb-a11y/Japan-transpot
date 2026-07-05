@@ -1,12 +1,31 @@
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { inputState } from '../../game/inputState'
 
-type InputKey = 'throttle' | 'brake' | 'left' | 'right' | 'glanceLeft' | 'glanceRight' | 'indicatorLeft' | 'indicatorRight'
+type HoldKey = 'throttle' | 'brake' | 'left' | 'right'
+type Side = 'left' | 'right'
 
 interface Props {
   disabled?: boolean
 }
 
 export function DrivingControls({ disabled }: Props) {
+  const { t } = useTranslation()
+  // Which indicator is latched on. Mirrors inputState.indicatorLeft/Right for
+  // touch input; the scene resets inputState between scenarios, and this state
+  // resets whenever the controls are disabled (scenario staging / feedback) —
+  // adjusted during render, per the React "derive state from props" pattern.
+  const [signal, setSignal] = useState<Side | null>(null)
+  if (disabled && signal !== null) setSignal(null)
+
+  const toggleSignal = (side: Side) => {
+    if (disabled) return
+    const next = signal === side ? null : side
+    setSignal(next)
+    inputState.indicatorLeft = next === 'left'
+    inputState.indicatorRight = next === 'right'
+  }
+
   return (
     <div
       className="flex items-center justify-between px-3 py-2 sm:px-5 sm:py-3 bg-[#0d1b2a]/95 border-t border-[#1A4E8C]/40 select-none"
@@ -14,60 +33,70 @@ export function DrivingControls({ disabled }: Props) {
     >
       {/* Steering + left blind-spot glance */}
       <div className="flex flex-col items-start gap-1">
-        <GlanceButton k="glanceLeft" disabled={disabled} label="左後" />
+        <GlanceButton k="glanceLeft" disabled={disabled} label={t('drive.glance_left')} />
         <div className="flex gap-2">
-          <DriveButton k="left"  disabled={disabled} color="#1A4E8C" icon="◀" label="左轉" />
-          <DriveButton k="right" disabled={disabled} color="#1A4E8C" icon="▶" label="右轉" />
+          <DriveButton k="left"  disabled={disabled} color="#1A4E8C" icon="◀" label={t('drive.steer_left')} />
+          <DriveButton k="right" disabled={disabled} color="#1A4E8C" icon="▶" label={t('drive.steer_right')} />
         </div>
-        <SignalButton k="indicatorLeft" disabled={disabled} label="左燈" />
+        <SignalButton
+          side="left"
+          active={signal === 'left'}
+          disabled={disabled}
+          label={t('drive.signal_left')}
+          onToggle={() => toggleSignal('left')}
+        />
       </div>
 
       {/* Throttle + Brake + right blind-spot glance */}
       <div className="flex flex-col items-end gap-1">
-        <GlanceButton k="glanceRight" disabled={disabled} label="右後" />
+        <GlanceButton k="glanceRight" disabled={disabled} label={t('drive.glance_right')} />
         <div className="flex gap-2">
-          <DriveButton k="throttle" disabled={disabled} color="#2e7d32" icon="▲" label="油門" />
-          <DriveButton k="brake"    disabled={disabled} color="#c62828" icon="▼" label="煞車" />
+          <DriveButton k="throttle" disabled={disabled} color="#2e7d32" icon="▲" label={t('drive.throttle')} />
+          <DriveButton k="brake"    disabled={disabled} color="#c62828" icon="▼" label={t('drive.brake')} />
         </div>
-        <SignalButton k="indicatorRight" disabled={disabled} label="右燈" />
+        <SignalButton
+          side="right"
+          active={signal === 'right'}
+          disabled={disabled}
+          label={t('drive.signal_right')}
+          onToggle={() => toggleSignal('right')}
+        />
       </div>
     </div>
   )
 }
 
 function SignalButton({
-  k,
+  side,
   label,
+  active,
   disabled,
+  onToggle,
 }: {
-  k: 'indicatorLeft' | 'indicatorRight'
+  side: Side
   label: string
+  active: boolean
   disabled?: boolean
+  onToggle: () => void
 }) {
-  const press = () => {
-    if (disabled) return
-    inputState.indicatorLeft = false
-    inputState.indicatorRight = false
-    inputState[k] = true
-  }
-
   return (
     <button
       type="button"
       disabled={disabled}
-      onClick={press}
+      onClick={onToggle}
       onContextMenu={(e) => e.preventDefault()}
-      className="flex items-center justify-center gap-1 rounded-full font-bold text-white transition-transform active:scale-95 disabled:opacity-40 touch-none"
+      className="flex items-center justify-center gap-1 rounded-full font-bold transition-transform active:scale-95 disabled:opacity-40 touch-none"
       style={{
         width: 'clamp(54px, 13vw, 62px)',
         height: 'clamp(30px, 8vw, 36px)',
         fontSize: 'clamp(10px, 2.7vw, 12px)',
-        backgroundColor: '#4a300dcc',
+        color: active ? '#111111' : '#ffffff',
+        backgroundColor: active ? '#FFC107' : '#4a300dcc',
         border: '2px solid #FFC107',
         WebkitTapHighlightColor: 'transparent',
       }}
     >
-      <span>{k === 'indicatorLeft' ? '↙' : '↘'}</span>
+      <span>{side === 'left' ? '↙' : '↘'}</span>
       <span>{label}</span>
     </button>
   )
@@ -121,7 +150,7 @@ function DriveButton({
   label,
   disabled,
 }: {
-  k: InputKey
+  k: HoldKey
   color: string
   icon: string
   label: string

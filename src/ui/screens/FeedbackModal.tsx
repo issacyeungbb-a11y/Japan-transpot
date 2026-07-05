@@ -48,7 +48,7 @@ export function FeedbackModal({ scenario, outcome, pointsEarned, onNext, onSkip,
             className="px-6 py-3 border-b border-red-900/40"
             style={{ background: 'linear-gradient(90deg, #2a0808 0%, #1a0505 100%)' }}
           >
-            <div className="text-xs text-red-400 font-bold uppercase tracking-widest mb-1">失敗原因</div>
+            <div className="text-xs text-red-400 font-bold uppercase tracking-widest mb-1">{t('feedback.fail_reason')}</div>
             <div className="text-xl font-black" style={{ color: '#FF5252' }}>
               {t(`reason.${outcome.reason}`)}
             </div>

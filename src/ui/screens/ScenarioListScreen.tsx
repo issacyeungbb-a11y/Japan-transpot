@@ -63,7 +63,7 @@ export function ScenarioListScreen({ onSelect, onBack }: Props) {
         </button>
         <span className="text-xl">🚦</span>
         <h2 className="font-bold text-base flex-1">{t('list.all')}</h2>
-        <span className="text-gray-400 text-sm">{scenarios.length}關</span>
+        <span className="text-gray-400 text-sm">{t('list.count', { n: scenarios.length })}</span>
       </div>
 
       {/* Scenario list */}
@@ -94,8 +94,7 @@ export function ScenarioListScreen({ onSelect, onBack }: Props) {
               <div className="text-xs text-gray-400 mt-0.5">
                 {ROAD_LABEL[s.roadType ?? 'cross']?.[lang] ?? ''}
                 {' · '}
-                {Math.round((s.timeLimitMs ?? 42000) / 1000)}
-                {lang === 'zh-TW' ? '秒' : '秒'}
+                {Math.round((s.timeLimitMs ?? 42000) / 1000)}秒
                 {' · '}
                 {TRAFFIC_LABEL[s.trafficDensity ?? 'light']?.[lang]}
               </div>

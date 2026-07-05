@@ -15,9 +15,6 @@ export function createGameConfig(parent: HTMLElement): Phaser.Types.Core.GameCon
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    physics: {
-      default: 'arcade',
-      arcade: { debug: false },
-    },
+    // No physics engine: movement and collision are computed by ScenarioScene.
   }
 }
