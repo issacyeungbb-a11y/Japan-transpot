@@ -22,7 +22,13 @@
     "start": "確定，開始駕駛",
     "throttle": "油門",
     "brake": "煞車",
-    "steer": "軚"
+    "steer": "軚",
+    "steer_left": "左轉",
+    "steer_right": "右轉",
+    "signal_left": "左燈",
+    "signal_right": "右燈",
+    "glance_left": "左後",
+    "glance_right": "右後"
   },
   "reason": {
     "success": "安全通過！",
@@ -43,6 +49,7 @@
   "feedback": {
     "correct": "正確！",
     "incorrect": "失敗",
+    "fail_reason": "失敗原因",
     "law": "相關法規",
     "common_mistake": "常見誤解",
     "next": "下一個",
@@ -87,6 +94,7 @@
     "close": "明白了"
   },
   "list": {
-    "all": "全部關卡"
+    "all": "全部關卡",
+    "count": "{{n}} 關"
   }
 }
