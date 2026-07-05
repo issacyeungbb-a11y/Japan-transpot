@@ -22,7 +22,13 @@
     "start": "確認して運転開始",
     "throttle": "アクセル",
     "brake": "ブレーキ",
-    "steer": "ハンドル"
+    "steer": "ハンドル",
+    "steer_left": "左へ",
+    "steer_right": "右へ",
+    "signal_left": "左合図",
+    "signal_right": "右合図",
+    "glance_left": "左後方",
+    "glance_right": "右後方"
   },
   "reason": {
     "success": "安全に通過！",
@@ -43,6 +49,7 @@
   "feedback": {
     "correct": "正解！",
     "incorrect": "失敗",
+    "fail_reason": "失敗の理由",
     "law": "関連法規",
     "common_mistake": "よくある間違い",
     "next": "次へ",
@@ -87,6 +94,7 @@
     "close": "わかった"
   },
   "list": {
-    "all": "全コース"
+    "all": "全コース",
+    "count": "{{n}}コース"
   }
 }

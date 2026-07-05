@@ -5,11 +5,18 @@ import { HUD } from '../components/HUD'
 import { DrivingControls } from './DrivingControls'
 import { FeedbackModal } from './FeedbackModal'
 import { bridge, PHASER_EVENTS, REACT_EVENTS } from '../../game/EventBridge'
+import type { StartScenarioPayload } from '../../game/EventBridge'
 import { inputState, resetInputState } from '../../game/inputState'
 import { useGameStore } from '../../store/gameStore'
 import { getScenarioById } from '../../data/scenarios'
 import { calcScore } from '../../data/trafficRules'
 import type { Scenario, BilingualText, Maneuver, DrivingOutcome } from '../../data/types'
+
+// Bundle the scenario with the current UI language so the Phaser scene can
+// localise its in-canvas text.
+function startPayload(scenario: Scenario): StartScenarioPayload {
+  return { scenario, lang: useGameStore.getState().lang }
+}
 
 type GamePhase = 'loading' | 'ready' | 'driving' | 'feedback'
 
@@ -50,7 +57,7 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
     const handler = () => {
       sceneReadyRef.current = true
       if (pendingScenarioRef.current) {
-        bridge.emit(REACT_EVENTS.START_SCENARIO, pendingScenarioRef.current)
+        bridge.emit(REACT_EVENTS.START_SCENARIO, startPayload(pendingScenarioRef.current))
         pendingScenarioRef.current = null
       }
     }
@@ -78,7 +85,7 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
       resetInputState()
 
       if (sceneReadyRef.current) {
-        bridge.emit(REACT_EVENTS.START_SCENARIO, currentScenario)
+        bridge.emit(REACT_EVENTS.START_SCENARIO, startPayload(currentScenario))
       } else {
         pendingScenarioRef.current = currentScenario
       }
@@ -149,7 +156,7 @@ export function GameScreen({ onSessionEnd, onBack }: Props) {
       setPointsEarned(0)
       setPhase('loading')
       queueMicrotask(() => {
-        bridge.emit(REACT_EVENTS.START_SCENARIO, currentScenario)
+        bridge.emit(REACT_EVENTS.START_SCENARIO, startPayload(currentScenario))
       })
       return
     }

@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { bridge, REACT_EVENTS, PHASER_EVENTS } from '../EventBridge'
+import type { StartScenarioPayload } from '../EventBridge'
 import { inputState } from '../inputState'
 import { canCrossLine } from '../../data/trafficRules'
 import type {
@@ -9,6 +10,8 @@ import type {
   Maneuver,
   OutcomeReason,
   RoadType,
+  Lang,
+  BilingualText,
 } from '../../data/types'
 import { GAME_WIDTH, GAME_HEIGHT } from '../dimensions'
 
@@ -48,9 +51,11 @@ const NB_LANE_X = CX - 20 // 380  (city roads)
 const NARROW_NB_X = CX - 14
 const MULTILANE_NB_X = CX - 52
 
-// Highway has two lanes per direction; player in left-half of left carriageway.
+// Highway has two lanes per direction (each carriageway 80px wide, lane 40px).
+// NB carriageway spans 320..400 with its dashed divider at x=360, so the lane
+// centres are 340 (left/keep-left lane, where the player drives) and 380.
 const HIGHWAY_W      = 160  // total road width
-const HIGHWAY_NB_X   = CX - 40 // 360 — player's lane centre on highway
+const HIGHWAY_NB_X   = CX - 60 // 340 — player's lane centre (left NB lane)
 
 // Bus-lane scenario: a wider same-direction road with a blue 「バス専用」 lane on
 // the LEFT and a normal lane on the RIGHT. The player must keep to the right.
@@ -176,9 +181,12 @@ export class ScenarioScene extends Phaser.Scene {
   private stopConfirmedText!: Phaser.GameObjects.Text
   private limitSign!: Phaser.GameObjects.Container
   private limitSignNumber!: Phaser.GameObjects.Text
+  private timerText!: Phaser.GameObjects.Text
 
   private scenario: Scenario | null = null
+  private lang: Lang = 'zh-TW'
   private phase: Phase = 'idle'
+  private timeLimitMs = DEFAULT_TIME_LIMIT_MS
 
   // car kinematic state
   private speed = 0
@@ -678,8 +686,8 @@ export class ScenarioScene extends Phaser.Scene {
 
     // Dashed centre lines
     g.fillStyle(ROAD_LINE)
-    // North arm (only for cross)
-    if (roadType === 'cross') {
+    // North arm (any four-way layout: cross, uncontrolled, …)
+    if (roadType !== 't-junction') {
       for (let y = 20; y < CY - INT / 2; y += 30) g.fillRect(CX - 2, y, 4, 18)
     }
     // South arm
@@ -692,7 +700,7 @@ export class ScenarioScene extends Phaser.Scene {
     // Stop lines (all four approaches)
     g.fillStyle(ROAD_LINE)
     g.fillRect(CX - ROAD_W / 2, CY + INT / 2, ROAD_W, 4)      // south (player)
-    if (roadType === 'cross') {
+    if (roadType !== 't-junction') {
       g.fillRect(CX - ROAD_W / 2, CY - INT / 2 - 4, ROAD_W, 4) // north
     }
     g.fillRect(CX - INT / 2 - 4, CY - ROAD_W / 2, 4, ROAD_W)   // west
@@ -897,7 +905,9 @@ export class ScenarioScene extends Phaser.Scene {
   }
 
   private drawHighwayMergeMarkings(g: Phaser.GameObjects.Graphics) {
-    const mergeX = HIGHWAY_NB_X + 42
+    // Hatched merge zone sits in the right NB lane (x ≈ 362..396), fully inside
+    // the northbound carriageway — it must not cross the yellow centre divider.
+    const mergeX = HIGHWAY_NB_X + 38
 
     g.fillStyle(0x2f2f2f)
     g.fillRect(mergeX - 16, 610, 34, 220)
@@ -1029,6 +1039,13 @@ export class ScenarioScene extends Phaser.Scene {
     this.stopConfirmedText = this.add
       .text(136, GAME_HEIGHT - 48, '✓已停定', { fontFamily: 'sans-serif', fontSize: '14px', fontStyle: 'bold', color: '#69f0ae' })
       .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(31)
+      .setVisible(false)
+
+    // Remaining-time readout (top-left) so timeouts never come as a surprise.
+    this.timerText = this.add
+      .text(12, 8, '', { fontFamily: 'monospace', fontSize: '15px', fontStyle: 'bold', color: '#d8f3ff' })
       .setScrollFactor(0)
       .setDepth(31)
       .setVisible(false)
@@ -1547,8 +1564,9 @@ export class ScenarioScene extends Phaser.Scene {
   // ================= Scenario lifecycle =================
 
   private onStartScenario = (raw: unknown) => {
-    const scenario = raw as Scenario
+    const { scenario, lang } = raw as StartScenarioPayload
     this.scenario = scenario
+    this.lang = lang ?? 'zh-TW'
     this.phase = 'ready'
     this.resolved = false
     this.hasStopped = false
@@ -1556,6 +1574,7 @@ export class ScenarioScene extends Phaser.Scene {
     this.crossedLine = false
     this.speedLimit = scenario.speedLimit ?? 0
     this.maxSpeedPx = MAX_SPEED
+    this.timeLimitMs = scenario.timeLimitMs ?? DEFAULT_TIME_LIMIT_MS
     this.overspeedMs = 0
     this.raining = scenario.weather === 'rain'
     this.hasTollGate = scenario.tollGate === true
@@ -1607,6 +1626,8 @@ export class ScenarioScene extends Phaser.Scene {
     }
 
     this.applySpeedLimitSign()
+    this.stopConfirmedText.setText(this.lang === 'ja' ? '✓停止確認' : '✓已停定')
+    this.timerText.setVisible(false)
     this.updateSpeedHud()
 
     this.spawnNPCs(scenario)
@@ -1625,8 +1646,13 @@ export class ScenarioScene extends Phaser.Scene {
     this.speed = 0
     this.driveStart = this.time.now
 
+    // Jitter each change, but keep the schedule strictly increasing so phases
+    // can never fire out of order (e.g. red before the preceding yellow).
+    let prevAtMs = 0
     scenario.lightChanges?.forEach((ch, index) => {
-      this.time.delayedCall(this.jitterLightChangeMs(ch.atMs, index), () => {
+      const atMs = Math.max(this.jitterLightChangeMs(ch.atMs, index), prevAtMs + 300)
+      prevAtMs = atMs
+      this.time.delayedCall(atMs, () => {
         if (this.phase === 'drive') this.applyLightState(ch.state)
       })
     })
@@ -1655,16 +1681,38 @@ export class ScenarioScene extends Phaser.Scene {
     const dt = Math.min(delta, 50) / 1000
     const elapsed = this.time.now - this.driveStart
 
+    this.latchIndicatorKeys()
     this.updateCar(dt)
     this.updateCamera(dt)
     this.updateNPCs(elapsed, dt)
     this.updateSpeedHud()
+    this.updateTimer(elapsed)
     this.updateRain(dt)
     this.updateBus(dt)
     this.updateSafetyGlance(elapsed)
 
     if (this.resolved) return
     this.evaluate(elapsed, dt)
+  }
+
+  // Q/E toggle the indicators (latched), matching the on-screen buttons —
+  // keyboard players must not have to HOLD the key through a whole turn.
+  private latchIndicatorKeys() {
+    if (this.keyQ && Phaser.Input.Keyboard.JustDown(this.keyQ)) {
+      inputState.indicatorLeft = !inputState.indicatorLeft
+      if (inputState.indicatorLeft) inputState.indicatorRight = false
+    }
+    if (this.keyE && Phaser.Input.Keyboard.JustDown(this.keyE)) {
+      inputState.indicatorRight = !inputState.indicatorRight
+      if (inputState.indicatorRight) inputState.indicatorLeft = false
+    }
+  }
+
+  private updateTimer(elapsed: number) {
+    const secs = Math.ceil(Math.max(0, this.timeLimitMs - elapsed) / 1000)
+    this.timerText.setVisible(true)
+    this.timerText.setText(`⏱ ${secs}s`)
+    this.timerText.setColor(secs <= 5 ? '#ff6666' : secs <= 10 ? '#ffcc00' : '#d8f3ff')
   }
 
   // Camera tracks car speed: faster speed → more road visible ahead + snappier response.
@@ -1695,8 +1743,9 @@ export class ScenarioScene extends Phaser.Scene {
     const right    = inputState.right    || this.cursors?.right.isDown || this.keyD?.isDown || false
     const throttle = inputState.throttle || this.cursors?.up.isDown    || this.keyW?.isDown || false
     const brake    = inputState.brake    || this.cursors?.down.isDown  || this.keyS?.isDown || false
-    const indicatorLeft = inputState.indicatorLeft || this.keyQ?.isDown || false
-    const indicatorRight = inputState.indicatorRight || this.keyE?.isDown || false
+    // Indicators are latched into inputState (touch buttons and Q/E both toggle).
+    const indicatorLeft = inputState.indicatorLeft
+    const indicatorRight = inputState.indicatorRight
     return { left, right, throttle, brake, indicatorLeft, indicatorRight }
   }
 
@@ -1832,6 +1881,7 @@ export class ScenarioScene extends Phaser.Scene {
   private npcPath(def: ScenarioNPC): Array<{ x: number; y: number }> {
     const start = { x: def.startX, y: def.startY }
     const end = { x: def.endX, y: def.endY }
+    if (def.waypoints?.length) return [start, ...def.waypoints, end]
     if (def.turnAt) return [start, def.turnAt, end]
     return [start, end]
   }
@@ -2040,8 +2090,11 @@ export class ScenarioScene extends Phaser.Scene {
       panel.fillRoundedRect(side === 'left' ? -52 : 42, 12, 13, 14, 5)
     }
 
+    const ja = this.lang === 'ja'
+    const sideText = side === 'left' ? (ja ? '左後方' : '左後') : (ja ? '右後方' : '右後')
+    const statusText = danger ? (ja ? ' 二輪あり' : ' 有二輪車') : ' 安全'
     const label = this.add
-      .text(0, -20, `${side === 'left' ? '左後' : '右後'}${danger ? ' 有二輪車' : ' 安全'}`, {
+      .text(0, -20, `${sideText}${statusText}`, {
         fontFamily: 'sans-serif',
         fontSize: '13px',
         fontStyle: 'bold',
@@ -2147,7 +2200,6 @@ export class ScenarioScene extends Phaser.Scene {
       this.crossedLine = true
       if (this.mustUseRightTurnLane(roadType)) return this.resolve('wrong_way')
       if (ev.mustStop && !this.hasStopped) return this.resolve('no_full_stop')
-      if (ev.waitForGo && !canCrossLine(this.currentLight, maneuver)) return this.resolve('ran_red')
       if (!canCrossLine(this.currentLight, maneuver)) return this.resolve('ran_red')
     }
 
@@ -2162,7 +2214,7 @@ export class ScenarioScene extends Phaser.Scene {
     if (elapsed > 250 && this.isOffRoad(roadType)) return this.resolve('off_road')
 
     // 6) Timeout
-    if (elapsed > (this.scenario!.timeLimitMs ?? DEFAULT_TIME_LIMIT_MS)) return this.resolve('timeout')
+    if (elapsed > this.timeLimitMs) return this.resolve('timeout')
   }
 
   private safetyCheckFailure(): OutcomeReason | null {
@@ -2331,6 +2383,7 @@ export class ScenarioScene extends Phaser.Scene {
     if (this.resolved) return
     this.resolved = true
     this.phase = 'done'
+    this.timerText.setVisible(false)
     const isCorrect = reason === 'success'
     const timeMs = this.time.now - this.driveStart
 
@@ -2338,20 +2391,20 @@ export class ScenarioScene extends Phaser.Scene {
     // EXACTLY what went wrong — before the React FeedbackModal even appears.
     const failObjs: Phaser.GameObjects.GameObject[] = []
     if (!isCorrect) {
-      const labels: Partial<Record<OutcomeReason, string>> = {
-        ran_red: '衝燈 / 未獲行進信號',
-        no_full_stop: '未完全停車（一時停止）',
-        failed_to_yield: '未讓行就進入危險區',
-        collision: '發生碰撞！',
-        speeding: '超速駕駛',
-        off_road: '偏離車道',
-        wrong_way: '方向錯誤',
-        timeout: '超時',
-        bus_lane: '禁入巴士專用線',
-        no_signal: '轉彎前未打方向燈',
-        no_safety_check: '漏做安全確認',
-        failed_to_slow: '未有徐行',
-        illegal_overtake: '違規超車',
+      const labels: Partial<Record<OutcomeReason, BilingualText>> = {
+        ran_red: { 'zh-TW': '衝燈 / 未獲行進信號', ja: '信号無視／進行信号なし' },
+        no_full_stop: { 'zh-TW': '未完全停車（一時停止）', ja: '一時停止していません' },
+        failed_to_yield: { 'zh-TW': '未讓行就進入危險區', ja: '譲らずに危険エリアへ進入' },
+        collision: { 'zh-TW': '發生碰撞！', ja: '衝突しました！' },
+        speeding: { 'zh-TW': '超速駕駛', ja: '速度超過' },
+        off_road: { 'zh-TW': '偏離車道', ja: '車線を外れました' },
+        wrong_way: { 'zh-TW': '方向錯誤', ja: '進行方向違反' },
+        timeout: { 'zh-TW': '超時', ja: '時間切れ' },
+        bus_lane: { 'zh-TW': '禁入巴士專用線', ja: 'バス専用レーン進入' },
+        no_signal: { 'zh-TW': '轉彎前未打方向燈', ja: '合図なしの右左折' },
+        no_safety_check: { 'zh-TW': '漏做安全確認', ja: '安全確認不足' },
+        failed_to_slow: { 'zh-TW': '未有徐行', ja: '徐行違反' },
+        illegal_overtake: { 'zh-TW': '違規超車', ja: '追越し違反' },
       }
       const cx = GAME_WIDTH / 2
       const cy = GAME_HEIGHT / 2
@@ -2364,7 +2417,7 @@ export class ScenarioScene extends Phaser.Scene {
       bannerBg.strokeRoundedRect(cx - bw / 2, cy - bh / 2, bw, bh, 10)
 
       const bannerText = this.add
-        .text(cx, cy, `✗  ${labels[reason] ?? reason}`, {
+        .text(cx, cy, `✗  ${labels[reason]?.[this.lang] ?? reason}`, {
           fontFamily: 'sans-serif',
           fontSize: '22px',
           fontStyle: 'bold',

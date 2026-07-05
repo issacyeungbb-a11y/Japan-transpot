@@ -23,10 +23,14 @@ async function loadLocales() {
   i18n.addResourceBundle('ja', 'translation', ja, true, true)
 }
 
-loadLocales().then(() => {
-  createRoot(document.getElementById('root')!).render(
-    <StrictMode>
-      <App />
-    </StrictMode>
-  )
-})
+// Render the app even if the locale fetch fails (e.g. flaky network) —
+// a UI with raw keys beats a permanently blank screen.
+loadLocales()
+  .catch((err) => console.warn('Failed to load locale bundles:', err))
+  .finally(() => {
+    createRoot(document.getElementById('root')!).render(
+      <StrictMode>
+        <App />
+      </StrictMode>
+    )
+  })

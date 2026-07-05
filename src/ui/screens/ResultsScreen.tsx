@@ -52,6 +52,14 @@ export function ResultsScreen({ onRestart, onMenu }: Props) {
   const weakAreas = (Object.entries(reasonCounts) as [OutcomeReason, number][])
     .sort((a, b) => b[1] - a[1])
 
+  // Failed scenarios repeat until passed, so the same id can appear several
+  // times — aggregate to one review row per scenario with its attempt count.
+  const wrongByScenario = new Map<string, number>()
+  for (const a of wrong) {
+    wrongByScenario.set(a.scenarioId, (wrongByScenario.get(a.scenarioId) ?? 0) + 1)
+  }
+  const wrongList = [...wrongByScenario.entries()]
+
   const handleMenu = () => {
     resetSession()
     onMenu()
@@ -107,23 +115,26 @@ export function ResultsScreen({ onRestart, onMenu }: Props) {
         </div>
       )}
 
-      {/* Wrong answers review */}
-      {wrong.length > 0 && (
+      {/* Wrong answers review — one row per scenario, with attempt count */}
+      {wrongList.length > 0 && (
         <div className="px-6 mb-6">
           <h2 className="text-sm font-bold text-gray-400 mb-3 uppercase tracking-wider">
-            {t('results.review')} ({wrong.length})
+            {t('results.review')} ({wrongList.length})
           </h2>
           <div className="space-y-2">
-            {wrong.map((answer) => {
-              const scenario = getScenarioById(answer.scenarioId)
+            {wrongList.map(([scenarioId, count]) => {
+              const scenario = getScenarioById(scenarioId)
               if (!scenario) return null
               return (
                 <div
-                  key={answer.scenarioId}
+                  key={scenarioId}
                   className="px-4 py-3 rounded-xl text-sm"
                   style={{ backgroundColor: 'rgba(211,47,47,0.15)', border: '1px solid rgba(211,47,47,0.3)' }}
                 >
-                  <div className="font-medium text-red-300">{scenario.title[lang]}</div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-red-300">{scenario.title[lang]}</span>
+                    {count > 1 && <span className="text-xs text-gray-400 tabular-nums">×{count}</span>}
+                  </div>
                   <div className="text-gray-400 text-xs mt-1">{scenario.feedback.lawArticle}</div>
                 </div>
               )

@@ -43,19 +43,23 @@ Current content: 27 playable driving scenarios in one focused practice path.
 ## Realism Features
 
 - Single practice entry with all 27 scenarios available for repeated training.
-- Live km/h speedometer and Japanese round speed-limit sign.
+- Live km/h speedometer, Japanese round speed-limit sign, and an on-screen
+  countdown of the remaining scenario time.
+- Cross traffic keeps left like everything else: eastbound NPCs use the north
+  half of the road, westbound the south half, so a correctly turning player
+  never meets a wrong-lane vehicle head-on.
 - Player starts from rest and must actively manage throttle, braking, and speed.
 - Speeding tolerance scales with the posted limit, so 30 km/h zones stay strict while expressways still allow tiny control overshoots.
 - Braking distance is tuned to require earlier slowing; rain further lengthens the stop.
 - Mandatory stops require a full 0.6 second stop close to the stop line, with a `✓已停定` HUD cue.
 - Pedestrian-yield scenarios require stopping for pedestrians in front of the vehicle, not merely rolling past slowly.
-- Turn-signal controls are part of the driving sequence; turning without signalling fails as `no_signal`.
+- Turn-signal controls are part of the driving sequence; turning without signalling fails as `no_signal`. Indicators latch like a real stalk: tap the on-screen button or press Q/E once to toggle.
 - Visibility and terrain modifiers now affect play: glare/night/fog overlays reduce readability, downhill changes braking demand, and highway crosswind nudges heading.
 - Slow signs render at the roadside and `徐行` areas fail if entered too fast.
 - Multilane right-turn scenarios check that the player is in the right-turn lane before crossing the stop line.
 - ETC toll gate must be cleared at 20 km/h or below; arriving faster hits the barrier.
 - Scenario enhancer adds longer time limits, busier traffic, mixed vehicle types, and richer road markings.
-- Reactive NPC vehicles can cruise, brake, yield, behave aggressively, turn with indicators, or use deterministic random yielding.
+- Reactive NPC vehicles can cruise, brake, yield, behave aggressively, turn with indicators, or use deterministic random yielding. Ambient traffic exits the world (or queues at the stop line) instead of parking mid-road, and roundabout traffic rides the ring and leaves via an arm.
 - New road geometry covers roundabouts and multilane junctions, with uncontrolled junction drills for left-side priority.
 - Blind-spot controls: hold `👀左後` or `👀右後`, or swipe on the game canvas, to check behind before turning.
 - High-risk turning scenarios can require mirror/blind-spot confirmation, with scooter traffic added to train 巻き込み awareness without turning every basic left turn into a hidden fail trap.

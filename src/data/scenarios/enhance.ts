@@ -14,9 +14,10 @@ const NB_X = CX - 20
 const SB_X = CX + 20
 const CROSS_Y = CY + 4
 const PED_Y = CY + INT / 2 + 48
-const HWY_NB_ADJACENT_X = CX
+// Highway NB carriageway spans 320..400: player keeps the left lane (340),
+// ambient same-direction traffic uses the right lane centred at 380.
+const HWY_NB_ADJACENT_X = CX - 20
 const HWY_SB_X = CX + 40
-const BUS_LANE_X = CX - 30
 
 const DENSITY_SCORE: Record<TrafficDensity, number> = {
   light: 1,
@@ -121,7 +122,7 @@ function ambientTrafficFor(
 function highwayTraffic(count: number): ScenarioNPC[] {
   const npcs: ScenarioNPC[] = [
     vehicle('ambient-hwy-bus', 'bus', HWY_SB_X, 60, HWY_SB_X, 1060, 145, 1400, 0x2e7d32),
-    vehicle('ambient-hwy-truck', 'truck', HWY_NB_ADJACENT_X, 1040, HWY_NB_ADJACENT_X, 80, 112, 2600, 0x78909c),
+    vehicle('ambient-hwy-truck', 'truck', HWY_NB_ADJACENT_X, 1040, HWY_NB_ADJACENT_X, -60, 112, 2600, 0x78909c),
   ]
 
   if (count >= 3) {
@@ -131,21 +132,26 @@ function highwayTraffic(count: number): ScenarioNPC[] {
 }
 
 function roundaboutTraffic(count: number): ScenarioNPC[] {
+  // Ring riders exit via an arm rather than parking inside the roundabout.
   const npcs: ScenarioNPC[] = [
-    vehicle('ambient-ring-kei', 'kei', CX + 88, CY, CX - 88, CY, 72, 900, 0x26a69a, 'cruise', { x: CX, y: CY + 88 }, 'left'),
+    {
+      ...vehicle('ambient-ring-kei', 'kei', CX + 88, CY, -60, CY + 20, 72, 900, 0x26a69a, 'cruise'),
+      waypoints: [{ x: CX, y: CY + 88 }, { x: CX - 88, y: CY }],
+    },
   ]
 
   if (count >= 2) {
-    npcs.push(vehicle('ambient-ring-random', 'car', CX, CY - 88, CX, CY + 88, 68, 3100, 0xffc107, 'random', { x: CX + 88, y: CY }, 'left'))
+    npcs.push(vehicle('ambient-ring-random', 'car', CX, CY - 88, 880, CY - 20, 68, 3100, 0xffc107, 'random', { x: CX + 88, y: CY }, 'left'))
   }
   return npcs
 }
 
 function straightRoadTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
   if (scenario.busLane) {
+    // The scene already renders a bus that patrols the blue lane; ambient
+    // traffic only adds a lead scooter in the player's (normal) lane.
     return [
-      vehicle('ambient-bus-lane-bus', 'bus', BUS_LANE_X, 940, BUS_LANE_X, 120, 68, 2600, 0x2e7d32),
-      vehicle('ambient-bus-lane-scooter', 'scooter', NB_X + 52, 820, NB_X + 52, 220, 92, 5000, 0xff7043),
+      vehicle('ambient-bus-lane-scooter', 'scooter', NB_X + 52, 820, NB_X + 52, -60, 92, 5000, 0xff7043),
     ]
   }
 
@@ -157,7 +163,7 @@ function straightRoadTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
     npcs.push(vehicle('ambient-straight-scooter', 'scooter', SB_X + 2, 80, SB_X + 2, 1040, 118, 3900, 0xef5350))
   }
   if (count >= 3) {
-    npcs.push(vehicle('ambient-straight-taxi', 'taxi', NB_X + 10, 920, NB_X + 10, 180, 76, 6200, 0xffc107))
+    npcs.push(vehicle('ambient-straight-taxi', 'taxi', NB_X + 10, 920, NB_X + 10, -60, 76, 6200, 0xffc107))
   }
 
   return npcs
@@ -167,15 +173,19 @@ function approachCompanions(scenario: Scenario, count: number): ScenarioNPC[] {
   const npcs: ScenarioNPC[] = []
 
   if (scenario.maneuver !== 'left') {
-    npcs.push(vehicle('ambient-rear-scooter', 'scooter', NB_X - 34, 1020, NB_X - 34, 520, 82, 3400, 0xff7043, 'cruise'))
+    // At a T-junction the scooter cannot ride straight through (no north arm),
+    // so it pulls up behind the stop line and waits; elsewhere it rides on
+    // through, obeying the signal like any reactive vehicle.
+    const rearEndY = (scenario.roadType ?? 'cross') === 't-junction' ? 640 : -60
+    npcs.push(vehicle('ambient-rear-scooter', 'scooter', NB_X - 34, 1020, NB_X - 34, rearEndY, 82, 3400, 0xff7043, 'cruise'))
   }
 
   if (count >= 2 && scenario.maneuver === 'straight') {
-    npcs.push(vehicle('ambient-lead-kei', 'kei', NB_X, 730, NB_X, 230, 70, 0, 0x8bc34a, 'cruise'))
+    npcs.push(vehicle('ambient-lead-kei', 'kei', NB_X, 730, NB_X, -60, 70, 0, 0x8bc34a, 'cruise'))
   }
 
   if (count >= 3 && scenario.roadType === 'multilane') {
-    npcs.push(vehicle('ambient-adjacent-car', 'car', CX - 18, 980, CX - 18, 260, 96, 1800, 0x42a5f5, 'cruise'))
+    npcs.push(vehicle('ambient-adjacent-car', 'car', CX - 18, 980, CX - 18, -60, 96, 1800, 0x42a5f5, 'cruise'))
   }
 
   return npcs
@@ -189,9 +199,10 @@ function tJunctionTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
   // "oncoming" traffic from the closed road; keep traffic on the horizontal
   // main road unless the player's signal protects them.
   if (!playerGetsGreen(scenario)) {
-    npcs.push(vehicle('ambient-main-road-car', 'car', -70, CROSS_Y, 870, CROSS_Y, 118, 1200, 0x26a69a, priorityBehavior))
+    // Left-hand traffic: eastbound rides the north half, westbound the south.
+    npcs.push(vehicle('ambient-main-road-car', 'car', -70, CROSS_Y - 22, 870, CROSS_Y - 22, 118, 1200, 0x26a69a, priorityBehavior))
     if (count >= 2) {
-      npcs.push(vehicle('ambient-main-road-kei', 'kei', 870, CROSS_Y + 12, -70, CROSS_Y + 12, 98, 3300, 0xffc107, 'cruise'))
+      npcs.push(vehicle('ambient-main-road-kei', 'kei', 870, CROSS_Y + 18, -70, CROSS_Y + 18, 98, 3300, 0xffc107, 'cruise'))
     }
   }
 
@@ -212,7 +223,7 @@ function intersectionTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
   }
 
   if (scenario.maneuver === 'left') {
-    npcs.push(vehicle('ambient-left-blind-scooter', 'scooter', NB_X - 34, 980, NB_X - 34, 360, 104, 2300, 0xff7043, 'aggressive'))
+    npcs.push(vehicle('ambient-left-blind-scooter', 'scooter', NB_X - 34, 980, NB_X - 34, -60, 104, 2300, 0xff7043, 'aggressive'))
   }
 
   // Cross-street vehicles only where the player has NO protected green. At a
@@ -222,7 +233,7 @@ function intersectionTraffic(scenario: Scenario, count: number): ScenarioNPC[] {
   // unsignalised/flashing junctions, and priority-road crossings, where the
   // player is taught to yield.
   if (!protectedPlayerFlow) {
-    npcs.push(vehicle('ambient-cross-truck', 'truck', -60, CROSS_Y, 860, CROSS_Y, 130, 2500, 0x78909c, priorityBehavior))
+    npcs.push(vehicle('ambient-cross-truck', 'truck', -60, CROSS_Y - 22, 860, CROSS_Y - 22, 130, 2500, 0x78909c, priorityBehavior))
   }
 
   // An ambient pedestrian crossing the player's approach is a yield lesson for

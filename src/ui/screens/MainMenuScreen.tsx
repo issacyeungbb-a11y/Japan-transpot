@@ -63,7 +63,7 @@ export function MainMenuScreen({ onStart }: Props) {
             className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0"
             style={{ backgroundColor: '#FF6B3533', color: '#FF6B35' }}
           >
-            {total}關
+            {t('list.count', { n: total })}
           </span>
         </button>
 
