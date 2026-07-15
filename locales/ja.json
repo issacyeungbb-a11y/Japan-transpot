@@ -4,11 +4,15 @@
     "subtitle": "日本の道路ルールシミュレーション"
   },
   "menu": {
-    "practice": "運転練習",
-    "practice_desc": "沖縄の27場面・ライフ制なし・判断力を重点練習",
-    "start": "ゲームスタート",
+    "study": "学習モード",
+    "study_desc": "ライフ無限・基礎ルールを段階的に学ぶ",
+    "normal": "ノーマルモード",
+    "normal_desc": "ライフ3回・難易度ミックス・歩行者＆曲がり角も",
+    "challenge": "チャレンジモード",
+    "challenge_desc": "ライフ1回・繁忙交差点＋高速道路に挑戦",
+    "start": "路上試験スタート",
     "how_to_play": "遊び方",
-    "start_desc": "沖縄のリアル27コース・ライフ無限"
+    "start_desc": "那覇からアメリカンビレッジまで・連続走行・終了後に成績表"
   },
   "hud": {
     "score": "スコア",
@@ -19,16 +23,9 @@
   },
   "drive": {
     "get_ready": "準備して出発！",
-    "start": "確認して運転開始",
     "throttle": "アクセル",
     "brake": "ブレーキ",
-    "steer": "ハンドル",
-    "steer_left": "左へ",
-    "steer_right": "右へ",
-    "signal_left": "左合図",
-    "signal_right": "右合図",
-    "glance_left": "左後方",
-    "glance_right": "右後方"
+    "steer": "ハンドル"
   },
   "reason": {
     "success": "安全に通過！",
@@ -40,23 +37,14 @@
     "off_road": "車線を外れました",
     "speeding": "速度超過です",
     "bus_lane": "バス専用レーンに進入",
-    "no_signal": "右左折前の合図なし",
-    "no_safety_check": "安全確認不足",
-    "failed_to_slow": "徐行できていません",
-    "illegal_overtake": "追越し違反",
     "timeout": "時間内に完了できませんでした"
   },
   "feedback": {
     "correct": "正解！",
     "incorrect": "失敗",
-    "fail_reason": "失敗の理由",
     "law": "関連法規",
     "common_mistake": "よくある間違い",
     "next": "次へ",
-    "confirm_next": "確認して次へ",
-    "retry": "もう一度試す",
-    "skip_after_three": "3回練習したので一旦スキップ",
-    "read_before_next": "解説を読んでから確認を押すと進みます",
     "explanation": "解説"
   },
   "results": {
@@ -87,14 +75,13 @@
   },
   "howto": {
     "title": "遊び方",
-    "line1": "アクセル🟢・ブレーキ🔴・ハンドル⬅️➡️で運転。右左折前は合図ボタン（PCは矢印キー、Q/Eで合図）",
+    "line1": "アクセル🟢・ブレーキ🔴・ハンドル⬅️➡️で運転（PCは矢印キー）",
     "line2": "左下の速度計（km/h）と右上の制限速度標識を見て、制限速度以下に保つ",
     "line3": "衝突・信号無視・速度超過・逆走は失敗になります",
     "line4": "注意：日本は左側通行。沖縄の市街は40–50、自動車道は80km/h！",
     "close": "わかった"
   },
   "list": {
-    "all": "全コース",
-    "count": "{{n}}コース"
+    "all": "全コース"
   }
 }
