@@ -1,68 +1,31 @@
 import { create } from 'zustand'
-import type { GameSession, AnswerRecord, Lang } from '../data/types'
+import type { Lang } from '../data/types'
+import { START_POINTS, type ViolationRecord } from '../course/types'
 
 interface GameStore {
   lang: Lang
-  session: GameSession | null
+  violations: ViolationRecord[]
+  finishedTimeMs: number | null
   setLang: (lang: Lang) => void
-  startSession: (scenarioIds: string[], startIndex?: number) => void
-  recordAnswer: (record: AnswerRecord) => void
-  nextScenario: () => void
-  addScore: (points: number) => void
-  resetSession: () => void
+  startCourse: () => void
+  addViolation: (v: ViolationRecord) => void
+  completeCourse: (timeMs: number) => void
 }
 
 export const useGameStore = create<GameStore>((set) => ({
   lang: 'zh-TW',
-  session: null,
+  violations: [],
+  finishedTimeMs: null,
 
   setLang: (lang) => set({ lang }),
 
-  startSession: (scenarioIds, startIndex = 0) =>
-    set({
-      session: {
-        scenarioIds,
-        currentIndex: startIndex,
-        score: 0,
-        streak: 0,
-        bestStreak: 0,
-        answers: [],
-      },
-    }),
+  startCourse: () => set({ violations: [], finishedTimeMs: null }),
 
-  recordAnswer: (record) =>
-    set((state) => {
-      if (!state.session) return state
-      const streak = record.isCorrect ? state.session.streak + 1 : 0
-      const bestStreak = Math.max(state.session.bestStreak, streak)
-      return {
-        session: {
-          ...state.session,
-          streak,
-          bestStreak,
-          answers: [...state.session.answers, record],
-        },
-      }
-    }),
+  addViolation: (v) => set((s) => ({ violations: [...s.violations, v] })),
 
-  nextScenario: () =>
-    set((state) => {
-      if (!state.session) return state
-      return {
-        session: {
-          ...state.session,
-          currentIndex: state.session.currentIndex + 1,
-        },
-      }
-    }),
-
-  addScore: (points) =>
-    set((state) => {
-      if (!state.session) return state
-      return {
-        session: { ...state.session, score: state.session.score + points },
-      }
-    }),
-
-  resetSession: () => set({ session: null }),
+  completeCourse: (timeMs) => set({ finishedTimeMs: timeMs }),
 }))
+
+export function pointsOf(violations: ViolationRecord[]): number {
+  return Math.max(0, START_POINTS - violations.reduce((a, v) => a + v.deduction, 0))
+}

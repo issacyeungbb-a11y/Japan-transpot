@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useGameStore } from '../../store/gameStore'
-import { ALL_SCENARIOS } from '../../data/scenarios'
+import { COURSE } from '../../course/route'
 import { LangToggle } from '../components/LangToggle'
 
 interface Props {
@@ -13,19 +13,20 @@ export function MainMenuScreen({ onStart }: Props) {
   const [showHowTo, setShowHowTo] = useState(false)
   const lang = useGameStore((s) => s.lang)
 
-  const total = ALL_SCENARIOS.length
+  const total = COURSE.length
 
   const title = lang === 'zh-TW' ? '沖繩交通挑戰' : '沖縄交通チャレンジ'
   const subtitle = lang === 'zh-TW' ? '日本道路規則模擬遊戲' : '日本の道路ルールシミュレーション'
 
   return (
     <div className="relative flex flex-col items-center justify-center h-full bg-[#0d1b2a] overflow-hidden">
-      {/* Road centreline background */}
+      {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute inset-y-0 left-1/2 w-24 -translate-x-1/2 bg-black/10" />
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-full opacity-15">
-          {Array.from({ length: 14 }).map((_, i) => (
-            <div key={i} className="w-full h-14 bg-white mb-8" />
+        <div className="absolute -top-20 -left-20 w-96 h-96 rounded-full bg-[#1A4E8C]/20 blur-3xl" />
+        <div className="absolute -bottom-20 -right-20 w-96 h-96 rounded-full bg-[#FF6B35]/10 blur-3xl" />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-full opacity-10">
+          {Array.from({ length: 20 }).map((_, i) => (
+            <div key={i} className="w-full h-12 bg-white mb-6" />
           ))}
         </div>
       </div>
@@ -54,7 +55,7 @@ export function MainMenuScreen({ onStart }: Props) {
           className="flex items-center gap-4 w-full px-5 py-5 rounded-2xl text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
           style={{ backgroundColor: '#FF6B3522', border: '1px solid #FF6B3588' }}
         >
-          <span className="text-3xl">🚦</span>
+          <span className="text-3xl">🏁</span>
           <div className="flex-1">
             <div className="font-bold text-white text-lg">{t('menu.start')}</div>
             <div className="text-xs text-gray-400">{t('menu.start_desc')}</div>
@@ -63,7 +64,7 @@ export function MainMenuScreen({ onStart }: Props) {
             className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0"
             style={{ backgroundColor: '#FF6B3533', color: '#FF6B35' }}
           >
-            {t('list.count', { n: total })}
+            {total}{lang === 'zh-TW' ? '個考核點' : '課題'}
           </span>
         </button>
 

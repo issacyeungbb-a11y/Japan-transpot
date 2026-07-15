@@ -1,60 +1,34 @@
 import { useState, useCallback } from 'react'
 import { MainMenuScreen } from './ui/screens/MainMenuScreen'
-import { ScenarioListScreen } from './ui/screens/ScenarioListScreen'
-import { GameScreen } from './ui/screens/GameScreen'
-import { ResultsScreen } from './ui/screens/ResultsScreen'
+import { CourseScreen } from './ui/screens/CourseScreen'
+import { ReportScreen } from './ui/screens/ReportScreen'
 import { useGameStore } from './store/gameStore'
-import { allScenarios } from './data/allScenarios'
 
-type AppScreen = 'menu' | 'scenario-list' | 'game' | 'results'
+type AppScreen = 'menu' | 'drive' | 'report'
 
 export function App() {
   const [screen, setScreen] = useState<AppScreen>('menu')
-  const startSession = useGameStore((s) => s.startSession)
+  // Remounting CourseScreen (fresh engine + world) needs a new key per run.
+  const [runId, setRunId] = useState(0)
+  const startCourse = useGameStore((s) => s.startCourse)
 
   const handleStart = useCallback(() => {
-    setScreen('scenario-list')
-  }, [])
+    startCourse()
+    setRunId((n) => n + 1)
+    setScreen('drive')
+  }, [startCourse])
 
-  const handleScenarioSelect = useCallback((startIndex: number) => {
-    startSession(allScenarios().map((s) => s.id), startIndex)
-    setScreen('game')
-  }, [startSession])
-
-  // Stable references — GameScreen's effects depend on these, so recreating
-  // them on every App render (e.g. when the score updates) would spuriously
-  // restart the current scenario.
-  const handleSessionEnd = useCallback(() => {
-    setScreen('results')
-  }, [])
-
-  const handleBackToList = useCallback(() => {
-    setScreen('scenario-list')
-  }, [])
-
-  const handleRestart = useCallback(() => {
-    startSession(allScenarios().map((s) => s.id))
-    setScreen('game')
-  }, [startSession])
-
-  const handleMenu = useCallback(() => {
-    setScreen('menu')
-  }, [])
+  const handleFinish = useCallback(() => setScreen('report'), [])
+  const handleMenu = useCallback(() => setScreen('menu'), [])
 
   return (
     <div className="w-full h-full">
-      {screen === 'menu' && (
-        <MainMenuScreen onStart={handleStart} />
+      {screen === 'menu' && <MainMenuScreen onStart={handleStart} />}
+      {screen === 'drive' && (
+        <CourseScreen key={runId} onFinish={handleFinish} onQuit={handleMenu} />
       )}
-      {screen === 'scenario-list' && (
-        <ScenarioListScreen
-          onSelect={handleScenarioSelect}
-          onBack={handleMenu}
-        />
-      )}
-      {screen === 'game' && <GameScreen onSessionEnd={handleSessionEnd} onBack={handleBackToList} />}
-      {screen === 'results' && (
-        <ResultsScreen onRestart={handleRestart} onMenu={handleMenu} />
+      {screen === 'report' && (
+        <ReportScreen onRetry={handleStart} onMenu={handleMenu} />
       )}
     </div>
   )

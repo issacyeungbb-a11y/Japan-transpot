@@ -63,13 +63,3 @@ export function canCrossLine(
   }
 }
 
-export function calcScore(
-  isCorrect: boolean,
-  streak: number,
-  difficulty: 1 | 2 | 3
-): number {
-  if (!isCorrect) return 0
-  const base = 100
-  const streakMultiplier = Math.min(1 + streak * 0.1, 2.0)
-  return Math.round(base * difficulty * streakMultiplier)
-}

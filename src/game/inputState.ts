@@ -1,5 +1,5 @@
 // Shared, mutable input state written by BOTH the on-screen React controls
-// and the Phaser keyboard handler, and read each frame by the driving scene.
+// and the keyboard handler, and read each frame by the 3D course engine.
 export interface InputState {
   throttle: boolean
   brake: boolean
